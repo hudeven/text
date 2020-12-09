@@ -1,27 +1,9 @@
-import io
 import torch
+import torchtext
 import datasets as ds
 from torchtext.experimental.vocab import build_vocab_from_iterator
 from torchtext.experimental.transforms import basic_english_normalize
-from torchtext.utils import download_from_url, unicode_csv_reader
 from pytorch_lightning import LightningDataModule
-
-
-def create_data_from_csv(data_path):
-    with io.open(data_path, encoding="utf8") as f:
-        reader = unicode_csv_reader(f)
-        for row in reader:
-            yield (int(row[0]), ' '.join(row[1:]))
-
-
-def convert_to_arrow(file_path, raw_data):
-    """ Write labels and texts into HF dataset"""
-    labels, texts = zip(*raw_data)
-    return ds.Dataset.from_dict(
-        {
-            "labels": labels,
-            "texts": texts
-        }).save_to_disk(file_path)
 
 
 def process_raw_data(arrow_ds, tokenizer, vocab):
@@ -44,30 +26,27 @@ def generate_batch(batch):
 
 
 class TextClassificationDataModule(LightningDataModule):
-    def __init__(self, train_valid_split=0.9):
+    def __init__(self, train_arrow_path='train_arrow',
+                 test_arrow_path='test_arrow',
+                 train_valid_split=0.9):
         super().__init__()
+        self.train_arrow_path = train_arrow_path
+        self.test_arrow_path = test_arrow_path
         self.train_valid_split = train_valid_split
-        self.base_url = 'https://raw.githubusercontent.com/mhjabreel/CharCnn_Keras/master/data/ag_news_csv/'
-        self.train_filepath = download_from_url(self.base_url + 'train.csv')
-        self.test_filepath = download_from_url(self.base_url + 'test.csv')
-        raw_train_data = list(create_data_from_csv(self.train_filepath))
-        raw_test_data = list(create_data_from_csv(self.test_filepath))
-        train_ds = convert_to_arrow('train_arrow', raw_train_data)
-        test_ds = convert_to_arrow('test_arrow', raw_test_data)
         self.tokenizer = basic_english_normalize().to_ivalue()
-        train_ds = ds.Dataset.load_from_disk('train_arrow')
+        train_ds = ds.Dataset.load_from_disk(self.train_arrow_path)
         self.vocab = build_vocab_from_iterator(iter(self.tokenizer(line)
                                                for line in train_ds['texts'])).to_ivalue()
 
     def setup(self, stage):
         # Load and split the raw train dataset into train and valid set
-        train_dataset = ds.Dataset.load_from_disk('train_arrow')
+        train_dataset = ds.Dataset.load_from_disk(self.train_arrow_path)
         dict_train_valid = train_dataset.train_test_split(test_size=1-self.train_valid_split,
                                                           train_size=self.train_valid_split,
                                                           shuffle=True)
         self.train = dict_train_valid['train']  # raw dataset
         self.valid = dict_train_valid['test']  # raw dataset
-        self.test = ds.Dataset.load_from_disk('test_arrow')  # raw dataset
+        self.test = ds.Dataset.load_from_disk(self.test_arrow_path)  # raw dataset
 
     def train_dataloader(self):
         # Process the raw dataset
