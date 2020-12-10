@@ -29,10 +29,12 @@ class TranslationTask(LightningModule):
         self.loss = nn.CrossEntropyLoss(ignore_index=datamodule.target_pad_idx)
 
     def forward(self, source_text_batch: List[str]) -> torch.Tensor:
-        data = self.data_module(source_text_batch)
+        data = self.datamodule(source_text_batch)
+        output: List[torch.Tensor] = []
         for batch in data:
             logits = self.model(batch, batch_idx=None)[0]
-            return logits
+            output.append(logits)
+        return output
         # TODO should decoding logic go here or elsewhere?
         #raise NotImplementedError
 
@@ -41,7 +43,11 @@ class TranslationTask(LightningModule):
 
     def training_step(self, batch, batch_idx):
         model_output = self.model(batch, batch_idx=batch_idx)
-        loss = self.loss(model_output[0], batch["target_token_ids"])
+        logits = model_output[0]
+        loss = self.loss(
+            logits.view(-1, logits.size(-1)),
+            batch["target_token_ids"].view(-1),
+        )
         self.log("loss", loss, prog_bar=True, on_epoch=True, sync_dist=True)
         return loss
 

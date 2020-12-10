@@ -39,12 +39,14 @@ class TranslationDataModule(LightningDataModule):
         # TODO otherwise take these in as input arguments?
         self.source_pad_idx = 0
         self.target_bos_idx = 0
-        self.target_pad_idx = -100
+        self.target_pad_idx = 0
 
         assert self.source_pad_idx >= 0, \
             f"source_pad_idx must be >= 0 for nn.Embedding ({self.source_pad_idx})"
         assert self.target_bos_idx >= 0, \
             f"target_bos_idx must be >= 0 for nn.Embedding ({self.target_bos_idx})"
+        assert self.target_pad_idx >= 0, \
+            f"target_pad_idx must be >= 0 for nn.Embedding ({self.target_pad_idx})"
 
         if batch_size_tokens is not None:
             raise NotImplementedError
