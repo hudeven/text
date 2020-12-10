@@ -60,8 +60,7 @@ class DocClassificationDataModule(LightningDataModule):
         # sample data into `num_batches_in_page` sized pool. In each pool, sort examples by sequence length, batch them
         # with `batch_size` and shuffle batches
         batch_sampler = PoolBatchSampler(sampler, batch_size=self.batch_size,
-                                         drop_last=self.drop_last, key=lambda row: row["seq_len"],
-                                         num_batches_in_page=10)
+                                         drop_last=self.drop_last, key=lambda row: row["seq_len"])
         return torch.utils.data.DataLoader(self.datasets["train"], batch_sampler=batch_sampler,
                                            num_workers=1,
                                            collate_fn=self.collate)
