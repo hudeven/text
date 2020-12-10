@@ -18,11 +18,6 @@ class QuestionAnswerTask(LightningModule):
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1.0, gamma=0.1)
         return [optimizer], [scheduler]
 
-    def _step(self, batch, batch_idx):
-        seq_input, target_start_pos, target_end_pos, tok_type = batch
-        start_pos, end_pos = self(seq_input, target_start_pos, target_end_pos, tok_type)
-        return (start_pos, end_pos)
-
     def training_step(self, batch, batch_idx):
         seq_input, target_start_pos, target_end_pos, tok_type = batch
         start_pos, end_pos = self(seq_input, tok_type)
