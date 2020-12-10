@@ -16,7 +16,7 @@ if __name__ == "__main__":
         convert_csv_to_arrow(split_path)
 
     # setup datamodule
-    datamodule = DocClassificationDataModule(data_path=data_path, batch_size=8)
+    datamodule = DocClassificationDataModule(data_path=data_path, batch_size=8, drop_last=True)
     datamodule.setup("fit")
 
     # construct task
