@@ -2,19 +2,24 @@ import os
 from collections import defaultdict
 
 import torch
-import datasets
+import datasets as ds
 from pytorch_lightning import LightningDataModule
 from stl_text.ops.tokenizers import WhitespaceTokenizer
 from stl_text.ops.transforms import LabelTransform
 from torch.utils.data._utils.collate import default_collate
 from torch.nn.utils.rnn import pad_sequence
+from stl_text.ops.samplers import PoolBatchSampler
+from torch.utils.data import DistributedSampler
 
 
 class DocClassificationDataModule(LightningDataModule):
-    def __init__(self, data_path: str = 'glue_sst2_tiny', batch_size: int = 32):
+    def __init__(self, data_path: str = 'glue_sst2_tiny', batch_size: int = 32, drop_last: bool = False,
+                 distributed: bool = False):
         super().__init__()
         self.data_path = data_path
         self.batch_size = batch_size
+        self.drop_last = drop_last
+        self.distributed = distributed
 
         self.text_transform = None
         self.label_transform = None
@@ -33,18 +38,30 @@ class DocClassificationDataModule(LightningDataModule):
         self.label_transform = LabelTransform(["0", "1"])
 
         for split in ("train", "valid", "test"):
-            self.datasets[split] = datasets.Dataset.load_from_disk(os.path.join(self.data_path, split))  # raw dataset
+            self.datasets[split] = ds.Dataset.load_from_disk(os.path.join(self.data_path, split))  # raw dataset
             self.datasets[split] = self.datasets[split].map(function=lambda x: {'label_id': self.label_transform(x)},
                                                             input_columns='label')
             self.datasets[split] = self.datasets[split].map(function=lambda x: {'token_ids': self.text_transform(x)},
                                                             input_columns='text')
-            self.datasets[split].set_format(type='torch', columns=['token_ids', 'label_id'])
+            self.datasets[split] = self.datasets[split].map(function=lambda x: {'seq_len': len(x)},
+                                                            input_columns='token_ids')
+            self.datasets[split].set_format(type='torch', columns=['label_id', 'token_ids', 'seq_len'])
 
     def forward(self, text):
         return self.text_transform(text)
 
     def train_dataloader(self):
-        return torch.utils.data.DataLoader(self.datasets["train"], shuffle=True, batch_size=self.batch_size,
+        if self.distributed:
+            # To shuffle data across epochs, we need `sampler.set_epoch(epoch)`
+            sampler = DistributedSampler(self.datasets["train"])
+        else:
+            sampler = self.datasets["train"]
+
+        # sample data into `num_batches_in_page` sized pool. In each pool, sort examples by sequence length, batch them
+        # with `batch_size` and shuffle batches
+        batch_sampler = PoolBatchSampler(sampler, batch_size=self.batch_size,
+                                         drop_last=self.drop_last, key=lambda row: row["seq_len"])
+        return torch.utils.data.DataLoader(self.datasets["train"], batch_sampler=batch_sampler,
                                            num_workers=1,
                                            collate_fn=self.collate)
 
