@@ -5,9 +5,6 @@ from typing import List, Optional
 
 import torch
 import torch.nn as nn
-from pytext.config.module_config import Activation
-from pytext.optimizer import get_activation
-
 
 class MlpDecoder(nn.Module):
     def __init__(
@@ -16,7 +13,7 @@ class MlpDecoder(nn.Module):
             out_dim: int,
             bias: bool,
             hidden_dims: List[int] = None,
-            activation: Activation = Activation.RELU,
+            activation: str = "relu",
     ) -> None:
         super().__init__()
         layers = []
@@ -34,3 +31,18 @@ class MlpDecoder(nn.Module):
         if dense is not None:
             representation = torch.cat([representation, dense], 1)
         return self.mlp(representation)
+
+
+def get_activation(name, dim=1):
+    if name == "relu":
+        return nn.ReLU()
+    elif name == "leakyrelu":
+        return nn.LeakyReLU()
+    elif name == "tanh":
+        return nn.Tanh()
+    elif name == "gelu":
+        return nn.GELU()
+    elif name == "glu":
+        return nn.GLU(dim=dim)
+    else:
+        raise RuntimeError(f"{name} is not supported")

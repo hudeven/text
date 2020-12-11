@@ -5,15 +5,10 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-from pytext.models.representations.transformer import (
-    MultiheadSelfAttention,
-    Transformer,
-    TransformerLayer,
-)
-from pytext.models.representations.transformer.sentence_encoder import (
-    translate_roberta_state_dict,
-)
-from pytext.utils.file_io import PathManager
+from stl_text.ops.modules.multihead_attention import MultiheadSelfAttention
+from stl_text.ops.modules.transformer import Transformer, TransformerLayer
+from stl_text.ops.modules.sentence_encoder import translate_roberta_state_dict
+from iopath.common.file_io import PathManager
 from torch.serialization import default_restore_location
 
 

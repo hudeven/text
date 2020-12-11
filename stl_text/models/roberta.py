@@ -5,7 +5,6 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-from pytext.config.module_config import Activation
 from stl_text.ops.modules import MlpDecoder, RobertaEncoder
 
 
@@ -52,7 +51,7 @@ class RobertaModel(nn.Module):
             in_dim=embedding_dim + dense_dim,
             out_dim=out_dim,
             bias=bias,
-            activation=Activation.RELU,
+            activation="relu",
         )
 
     def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
