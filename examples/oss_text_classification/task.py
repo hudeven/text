@@ -43,7 +43,6 @@ class TextClassificationTask(LightningModule):
             total_acc += (predited_labels.argmax(1) == target_labels).sum().item()
             total_count += predited_labels.size(0)
         return total_acc, total_count
-        self.log('val_acc', total_acc/total_count, prog_bar=True)
 
     def validation_step(self, batch, batch_idx):
         return self._eval_step(batch, batch_idx)
