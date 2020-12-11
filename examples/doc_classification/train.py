@@ -1,6 +1,7 @@
 import os
 import tempfile
 
+import argparse
 import torch
 from torch.optim import AdamW
 from pytorch_lightning import Trainer
@@ -10,7 +11,7 @@ from stl_text.models import RobertaModel
 from task import DocClassificationTask
 
 
-def main():
+def main(max_epochs: int, gpus: int, fast_dev_run: bool = False):
     # convert csv to arrow format (only required for the first time)
     data_path = "./glue_sst2_tiny"
     for split in ("train.tsv", "valid.tsv", "test.tsv"):
@@ -38,7 +39,7 @@ def main():
     )
 
     # train model
-    trainer = Trainer(max_epochs=5, fast_dev_run=True)
+    trainer = Trainer(max_epochs=max_epochs, gpus=gpus, fast_dev_run=fast_dev_run, accelerator="ddp" if gpus > 0 else None)
     trainer.fit(task, datamodule=datamodule)
 
     # test model
@@ -55,4 +56,12 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description='Train a doc classification model')
+    parser.add_argument('--max_epochs', type=int, default=5, help='num epochs (default=5)')
+    parser.add_argument('--gpus', type=int, default=0, help='num of gpus')
+    parser.add_argument('--fast_dev_run', type=bool, default=False, help='fast train with a iteration')
+    args = parser.parse_args()
+
+    max_epochs = args.max_epochs
+    gpus = args.gpus
+    main(max_epochs, gpus)
