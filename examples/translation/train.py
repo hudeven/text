@@ -1,37 +1,35 @@
 #!/usr/bin/env python3
 
 import logging
+import os
 import tempfile
-from collections import Counter, OrderedDict
 from itertools import chain
 from typing import Iterable
 
 import torch
 from datasets import load_dataset
 from pytorch_lightning import Trainer
-from stl_text.datamodule import TranslationDataModule
+from stl_text.datamodule.translation import TranslationDataModule
 from stl_text.ops.tokenizers import WhitespaceTokenizer
 from torch import nn
-from torchtext.experimental.vocab import vocab
 
 from task import TranslationTask
-
 
 logger = logging.getLogger(__name__)
 
 
-def build_vocab(data: Iterable, transform: nn.Module) -> vocab:
+def build_vocab(data: Iterable, transform: nn.Module) -> "Vocab":
     tokens = chain.from_iterable(
         map(lambda x: transform(x["text"]), data)
     )
     list(tokens)
     return transform.vocab
-    #tokens = chain.from_iterable(
+    # tokens = chain.from_iterable(
     #    map(lambda x: transform.tokenize(x["text"]), data)
-    #)
-    #counts = Counter(tokens).most_common()
+    # )
+    # counts = Counter(tokens).most_common()
     # TODO cannot pickle 'torchtext._torchtext.Vocab' object
-    #return vocab(OrderedDict(counts), unk_token="<unk>")
+    # return vocab(OrderedDict(counts), unk_token="<unk>")
 
 
 def main(fast_dev_run=True):
