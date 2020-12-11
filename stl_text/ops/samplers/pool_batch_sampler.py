@@ -49,6 +49,7 @@ class PoolBatchSampler(BatchSampler):
             sampler = DistributedSampler(data_source, drop_last=False)
         else:
             sampler = SequentialSampler(data_source)
+
         super().__init__(sampler, batch_size, drop_last)
         self.data_source = data_source
         self.key = key

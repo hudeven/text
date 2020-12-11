@@ -39,7 +39,7 @@ def main(max_epochs: int, gpus: int, fast_dev_run: bool = False):
     )
 
     # train model
-    trainer = Trainer(max_epochs=max_epochs, gpus=gpus, fast_dev_run=fast_dev_run, accelerator="ddp" if gpus > 0 else None)
+    trainer = Trainer(max_epochs=max_epochs, gpus=gpus, fast_dev_run=fast_dev_run, accelerator="ddp" if gpus > 0 else None, replace_sampler_ddp=False)
     trainer.fit(task, datamodule=datamodule)
 
     # test model
