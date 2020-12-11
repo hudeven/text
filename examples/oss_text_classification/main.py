@@ -1,7 +1,7 @@
 import torchtext
 import io
 from pytorch_lightning import Trainer
-from stl_text.datamodule import TextClassificationDataModule
+from stl_text.datamodule.text_classification import TextClassificationDataModule
 from task import TextClassificationTask
 import datasets as ds
 from torchtext.utils import download_from_url, unicode_csv_reader
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     data_module = TextClassificationDataModule(train_arrow_path='train_arrow',
                                                test_arrow_path='test_arrow')
     task = TextClassificationTask(len(data_module.vocab), EMBED, NUM_CLASS, LR)
-    trainer = Trainer(gpus=1, max_epochs=EPOCH, progress_bar_refresh_rate=40)
+    trainer = Trainer(gpus=0, max_epochs=EPOCH, progress_bar_refresh_rate=40)
     trainer.fit(task, data_module)
 
     # run test set
