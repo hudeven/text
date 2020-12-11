@@ -14,11 +14,12 @@ from torch.utils.data import DistributedSampler
 
 class DocClassificationDataModule(LightningDataModule):
     def __init__(self, data_path: str = 'glue_sst2_tiny', batch_size: int = 32, drop_last: bool = False,
-                 distributed: bool = False):
+            num_proc_in_map: int = 1, distributed: bool = False):
         super().__init__()
         self.data_path = data_path
         self.batch_size = batch_size
         self.drop_last = drop_last
+        self.num_proc_in_map = num_proc_in_map
         self.distributed = distributed
 
         self.text_transform = None
@@ -40,11 +41,11 @@ class DocClassificationDataModule(LightningDataModule):
         for split in ("train", "valid", "test"):
             self.datasets[split] = ds.Dataset.load_from_disk(os.path.join(self.data_path, split))  # raw dataset
             self.datasets[split] = self.datasets[split].map(function=lambda x: {'label_id': self.label_transform(x)},
-                                                            input_columns='label', num_proc=8)
+                                                            input_columns='label', num_proc=self.num_proc_in_map)
             self.datasets[split] = self.datasets[split].map(function=lambda x: {'token_ids': self.text_transform(x)},
-                                                            input_columns='text')
+                                                            input_columns='text', num_proc=self.num_proc_in_map)
             self.datasets[split] = self.datasets[split].map(function=lambda x: {'seq_len': len(x)},
-                                                            input_columns='token_ids')
+                                                            input_columns='token_ids', num_proc=self.num_proc_in_map)
             self.datasets[split].set_format(type='torch', columns=['label_id', 'token_ids', 'seq_len'])
 
     def forward(self, text):
