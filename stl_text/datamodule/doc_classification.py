@@ -6,14 +6,13 @@ import datasets as ds
 from pytorch_lightning import LightningDataModule
 from stl_text.ops.tokenizers import WhitespaceTokenizer
 from stl_text.ops.transforms import LabelTransform
-from torch.utils.data._utils.collate import default_collate
 from torch.nn.utils.rnn import pad_sequence
 from stl_text.ops.samplers import PoolBatchSampler
 
 
 class DocClassificationDataModule(LightningDataModule):
     def __init__(self, data_path: str = 'glue_sst2_tiny', batch_size: int = 32, drop_last: bool = False,
-            num_proc_in_map: int = 1, distributed: bool = False):
+                 num_proc_in_map: int = 1, distributed: bool = False):
         super().__init__()
         self.data_path = data_path
         self.batch_size = batch_size
