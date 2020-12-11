@@ -1,4 +1,3 @@
-import random
 import torch.nn as nn
 from typing import Dict, List
 
@@ -6,14 +5,15 @@ from typing import Dict, List
 class WhitespaceTokenizer(nn.Module):
     def __init__(self, trainable=False, speed: int = 0):
         super(WhitespaceTokenizer, self).__init__()
-        self.vocab: Dict[str, int] = {}
+        self.vocab: Dict[str, int] = {"unknown": 0}
         self.trainable = trainable
-        self.speed = speed # mock a real tokenizer: slowing down tokenization speed
+        self.speed = speed  # mock a real tokenizer: slowing down tokenization speed
 
     def forward(self, text: str) -> List[int]:
         return self.numberize(self.tokenize(text))
 
     def tokenize(self, text: str) -> List[str]:
+        # slowing down tokenization speed
         count = 0
         for i in range(self.speed):
             count += 1
@@ -29,5 +29,6 @@ class WhitespaceTokenizer(nn.Module):
                     token_ids.append(len(self.vocab))
                     self.vocab[token] = len(self.vocab)
                 else:
-                    token_ids.append(random.randint(0, 100))
+                    mock_token_id: int = 99
+                    token_ids.append(mock_token_id)
         return token_ids

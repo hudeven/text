@@ -64,4 +64,5 @@ if __name__ == "__main__":
 
     max_epochs = args.max_epochs
     gpus = args.gpus
-    main(max_epochs, gpus)
+    fast_dev_run = args.fast_dev_run
+    main(max_epochs, gpus, fast_dev_run=fast_dev_run)
