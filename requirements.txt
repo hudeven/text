@@ -1,3 +1,4 @@
 iopath
 torch
+datasets
 pytorch-lightning==1.1
