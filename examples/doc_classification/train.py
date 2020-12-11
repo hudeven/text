@@ -51,7 +51,7 @@ def main(max_epochs: int, gpus: int, fast_dev_run: bool = False):
 
     # deploy task to server and inference
     with open(export_path, "rb") as f:
-        ts_module = torch.load(f)
+        ts_module = torch.jit.load(f)
         print(ts_module(text_batch=["hello world", "attention is all your need!"]))
 
 
