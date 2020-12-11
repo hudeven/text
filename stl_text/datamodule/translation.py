@@ -7,7 +7,6 @@ import torch
 from pytorch_lightning import LightningDataModule
 from torch import nn
 from torch.nn.utils.rnn import pad_sequence
-from torchtext.experimental.vocab import vocab
 
 
 class TranslationDataModule(LightningDataModule):
@@ -15,8 +14,8 @@ class TranslationDataModule(LightningDataModule):
         self,
         source_data: datasets.arrow_dataset.Dataset,
         target_data: datasets.arrow_dataset.Dataset,
-        source_vocab: vocab,
-        target_vocab: vocab,
+        source_vocab: "vocab",
+        target_vocab: "vocab",
         batch_size_sequences: Optional[int] = 16,
         batch_size_tokens: Optional[int] = None,
         source_text_transform: Optional[nn.Module] = None,

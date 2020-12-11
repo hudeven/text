@@ -1,11 +1,10 @@
 from .doc_classification import DocClassificationDataModule
-from .text_classification import TextClassificationDataModule
 from .translation import TranslationDataModule
-from .question_answer import QuestionAnswerDataModule
+
+# As nightly version of torchtext is tricky to setup correctly
+# We removed QuestionAnswerDataModule and TextClassificationDataModule to make dependency to torchtext optional
 
 __ALL__ = [
     "DocClassificationDataModule",
-    "QuestionAnswerDataModule",
-    "TextClassificationDataModule",
     "TranslationDataModule",
 ]

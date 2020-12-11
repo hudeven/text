@@ -1,4 +1,3 @@
 torch
-torchtext
 pytext-nlp
-pytorch-lightning
+pytorch-lightning==1.1
