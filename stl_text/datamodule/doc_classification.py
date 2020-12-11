@@ -9,7 +9,6 @@ from stl_text.ops.transforms import LabelTransform
 from torch.utils.data._utils.collate import default_collate
 from torch.nn.utils.rnn import pad_sequence
 from stl_text.ops.samplers import PoolBatchSampler
-from torch.utils.data import DistributedSampler
 
 
 class DocClassificationDataModule(LightningDataModule):
@@ -51,15 +50,9 @@ class DocClassificationDataModule(LightningDataModule):
         return self.text_transform(text)
 
     def train_dataloader(self):
-        if self.distributed:
-            # To shuffle data across epochs, we need `sampler.set_epoch(epoch)`
-            sampler = DistributedSampler(self.datasets["train"])
-        else:
-            sampler = self.datasets["train"]
-
         # sample data into `num_batches_in_page` sized pool. In each pool, sort examples by sequence length, batch them
         # with `batch_size` and shuffle batches
-        batch_sampler = PoolBatchSampler(sampler, batch_size=self.batch_size,
+        batch_sampler = PoolBatchSampler(self.datasets["train"], batch_size=self.batch_size,
                                          drop_last=self.drop_last, key=lambda row: row["seq_len"])
         return torch.utils.data.DataLoader(self.datasets["train"], batch_sampler=batch_sampler,
                                            num_workers=1,

@@ -5,6 +5,7 @@ import math
 import random
 from typing import Callable, Optional, Sized
 
+from torch.utils.data import DistributedSampler
 from torch.utils.data.sampler import BatchSampler, SequentialSampler
 
 
@@ -42,8 +43,12 @@ class PoolBatchSampler(BatchSampler):
         drop_last: bool,
         key: Optional[Callable] = None,
         num_batches_in_page: int = 1024,
+        distributed: bool = False,
     ):
-        sampler = SequentialSampler(data_source)
+        if distributed:
+            sampler = DistributedSampler(data_source, drop_last=False)
+        else:
+            sampler = SequentialSampler(data_source)
         super().__init__(sampler, batch_size, drop_last)
         self.data_source = data_source
         self.key = key
