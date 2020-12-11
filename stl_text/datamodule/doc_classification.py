@@ -40,7 +40,7 @@ class DocClassificationDataModule(LightningDataModule):
         for split in ("train", "valid", "test"):
             self.datasets[split] = ds.Dataset.load_from_disk(os.path.join(self.data_path, split))  # raw dataset
             self.datasets[split] = self.datasets[split].map(function=lambda x: {'label_id': self.label_transform(x)},
-                                                            input_columns='label')
+                                                            input_columns='label', num_proc=8)
             self.datasets[split] = self.datasets[split].map(function=lambda x: {'token_ids': self.text_transform(x)},
                                                             input_columns='text')
             self.datasets[split] = self.datasets[split].map(function=lambda x: {'seq_len': len(x)},
