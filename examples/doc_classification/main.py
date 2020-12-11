@@ -4,14 +4,14 @@ import tempfile
 import argparse
 import torch
 from torch.optim import AdamW
-from pytorch_lightning import Trainer
+from pytorch_lightning import Trainer, LightningModule
 from stl_text.ops.utils.arrow import convert_csv_to_arrow
 from stl_text.datamodule import DocClassificationDataModule
 from stl_text.models import RobertaModel
 from task import DocClassificationTask
 
 
-def main(max_epochs: int, gpus: int, fast_dev_run: bool = False):
+def train(max_epochs: int, gpus: int, fast_dev_run: bool = False):
     # convert csv to arrow format (only required for the first time)
     data_path = "./glue_sst2_tiny"
     for split in ("train.tsv", "valid.tsv", "test.tsv"):
@@ -39,12 +39,21 @@ def main(max_epochs: int, gpus: int, fast_dev_run: bool = False):
     )
 
     # train model
-    trainer = Trainer(max_epochs=max_epochs, gpus=gpus, fast_dev_run=fast_dev_run, accelerator="ddp" if gpus > 0 else None, replace_sampler_ddp=False)
+    trainer = Trainer(
+        max_epochs=max_epochs,
+        gpus=gpus,
+        fast_dev_run=fast_dev_run,
+        accelerator="ddp" if gpus > 0 else None,
+        replace_sampler_ddp=False
+    )
     trainer.fit(task, datamodule=datamodule)
 
     # test model
     trainer.test(task, datamodule=datamodule)
+    return task
 
+
+def export_and_inference(task: LightningModule):
     # export task(transform + model) to TorchScript
     export_path = "/tmp/doc_classification_task.pt1"
     task.to_torchscript(export_path)
@@ -52,7 +61,11 @@ def main(max_epochs: int, gpus: int, fast_dev_run: bool = False):
     # deploy task to server and inference
     with open(export_path, "rb") as f:
         ts_module = torch.jit.load(f)
-        print(ts_module(text_batch=["hello world", "attention is all your need!"]))
+
+    text_batch = ["hello world", "unify pytext, fairseq, torchtext", "attention is all your need!"]
+    print(f"Inference: \ninput: {text_batch}")
+    logits = ts_module(text_batch=text_batch)
+    print(f"output: logits = {logits}")
 
 
 if __name__ == "__main__":
@@ -65,4 +78,6 @@ if __name__ == "__main__":
     max_epochs = args.max_epochs
     gpus = args.gpus
     fast_dev_run = args.fast_dev_run
-    main(max_epochs, gpus, fast_dev_run=fast_dev_run)
+
+    task = train(max_epochs, gpus, fast_dev_run=fast_dev_run)
+    export_and_inference(task)

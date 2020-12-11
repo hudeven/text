@@ -1,5 +1,6 @@
 import os
 from collections import defaultdict
+from typing import Optional
 
 import torch
 import datasets as ds
@@ -11,10 +12,11 @@ from stl_text.ops.samplers import PoolBatchSampler
 
 
 class DocClassificationDataModule(LightningDataModule):
-    def __init__(self, data_path: str = 'glue_sst2_tiny', batch_size: int = 32, drop_last: bool = False,
+    def __init__(self, data_path: str = 'glue_sst2_tiny', vocab_path: Optional[str] = None, batch_size: int = 32, drop_last: bool = False,
                  num_proc_in_map: int = 1, distributed: bool = False):
         super().__init__()
         self.data_path = data_path
+        self.vocab_path = vocab_path
         self.batch_size = batch_size
         self.drop_last = drop_last
         self.num_proc_in_map = num_proc_in_map
@@ -33,7 +35,7 @@ class DocClassificationDataModule(LightningDataModule):
         # self.text_transform = sequential_transforms(tokenizer, vocab)
 
         # use dummy text_transform and label_transform to get rid of pickling and torchscript issues
-        self.text_transform = WhitespaceTokenizer()
+        self.text_transform = WhitespaceTokenizer(vocab_path=self.vocab_path)
         self.label_transform = LabelTransform(["0", "1"])
 
         for split in ("train", "valid", "test"):

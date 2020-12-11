@@ -1,13 +1,24 @@
 import torch.nn as nn
-from typing import Dict, List
+from typing import Dict, List, Optional
+from iopath.common.file_io import PathManager
 
 
 class WhitespaceTokenizer(nn.Module):
-    def __init__(self, trainable=False, speed: int = 0):
+    def __init__(self, vocab_path: Optional[str] = None, trainable=False, speed: int = 0):
         super(WhitespaceTokenizer, self).__init__()
-        self.vocab: Dict[str, int] = {"unknown": 0}
         self.trainable = trainable
         self.speed = speed  # mock a real tokenizer: slowing down tokenization speed
+
+        self.unknown = "unknown"
+        self.vocab: Dict[str, int] = {self.unknown: 0}
+
+        # load vocab
+        path_manager = PathManager()
+        if vocab_path:
+            with path_manager.open(vocab_path, "r") as f:
+                for line in f.readlines():
+                    token = line.split()[0]
+                    self.vocab[token] = len(self.vocab)
 
     def forward(self, text: str) -> List[int]:
         return self.numberize(self.tokenize(text))
@@ -29,6 +40,5 @@ class WhitespaceTokenizer(nn.Module):
                     token_ids.append(len(self.vocab))
                     self.vocab[token] = len(self.vocab)
                 else:
-                    mock_token_id: int = 99
-                    token_ids.append(mock_token_id)
+                    token_ids.append(self.vocab[self.unknown])
         return token_ids
