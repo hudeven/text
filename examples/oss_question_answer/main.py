@@ -1,12 +1,11 @@
 import torch
-import torchtext
 from pytorch_lightning import Trainer
 import datasets as ds
 from torchtext.utils import download_from_url
 from torchtext.experimental.datasets.raw import SQuAD1
 from model import BertModel, QuestionAnswerModel
 from task import QuestionAnswerTask
-from stl_text.datamodule import QuestionAnswerDataModule
+from stl_text.datamodule.question_answer import QuestionAnswerDataModule
 
 
 def convert_to_arrow(raw_data, arrow_filepath):
@@ -57,5 +56,5 @@ if __name__ == "__main__":
     qa_model = QuestionAnswerModel(pretrained_bert)
 
     task = QuestionAnswerTask(qa_model, LR)
-    trainer = Trainer(gpus=1, max_epochs=EPOCH, progress_bar_refresh_rate=40)
+    trainer = Trainer(gpus=0, max_epochs=EPOCH, progress_bar_refresh_rate=40, fast_dev_run=True)
     trainer.fit(task, data_module)
