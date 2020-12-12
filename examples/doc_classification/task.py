@@ -1,4 +1,4 @@
-from typing import Callable, List
+from typing import List, Tuple
 
 import torch
 import torch.nn as nn
@@ -22,16 +22,20 @@ class DocClassificationTask(LightningModule):
     ):
         super().__init__()
         self.text_transform = datamodule.text_transform
+        self.label_transform = datamodule.label_transform
         self.model = model
         self.optimizer = optimizer
         self.loss = torch.nn.CrossEntropyLoss()
         self.valid_acc = metrics.Accuracy()
         self.test_acc = metrics.Accuracy()
 
-    def forward(self, text_batch: List[str]) -> Tensor:
+    def forward(self, text_batch: List[str]) -> List[str]:
         token_ids: List[Tensor] = [torch.tensor(self.text_transform(text), dtype=torch.long) for text in text_batch]
         model_inputs: Tensor = pad_sequence(token_ids, batch_first=True)
-        return self.model(model_inputs)
+        logits = self.model(model_inputs)
+        prediction_idx = torch.max(logits, dim=1)[1]
+        prediction_labels = [self.label_transform.decode(idx) for idx in prediction_idx]
+        return prediction_labels
 
     def configure_optimizers(self):
         return self.optimizer
