@@ -43,8 +43,8 @@ def main(fast_dev_run=True):
     train = "train" if not fast_dev_run else "validation"
 
     logger.info("build vocabs")
-    source_text_transform = WhitespaceTokenizer()
-    target_text_transform = WhitespaceTokenizer()
+    source_text_transform = WhitespaceTokenizer(trainable=True)
+    target_text_transform = WhitespaceTokenizer(trainable=True)
     source_vocab = build_vocab(wmt14["cs"][train], source_text_transform)
     target_vocab = build_vocab(wmt14["en"][train], target_text_transform)
 
@@ -68,7 +68,7 @@ def main(fast_dev_run=True):
         num_setup_workers=10,
     )
     datamodule.setup("fit")
-
+    print(f"######### {len(source_vocab)}, {len(target_vocab)}")
     model = Model(len(source_vocab), len(target_vocab))
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001)
 
