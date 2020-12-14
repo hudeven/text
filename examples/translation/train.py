@@ -4,16 +4,17 @@ import logging
 import os
 import tempfile
 from itertools import chain
-from typing import Iterable
+from typing import Dict, Iterable, Optional
 
 import torch
 from datasets import load_dataset
 from pytorch_lightning import Trainer
-from stl_text.datamodule.translation import TranslationDataModule
+from stl_text.datamodule import TranslationDataModule
 from stl_text.ops.tokenizers import WhitespaceTokenizer
 from torch import nn
 
 from task import TranslationTask
+
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,8 @@ def main(fast_dev_run=True):
     target_text_transform = WhitespaceTokenizer(trainable=True)
     source_vocab = build_vocab(wmt14["cs"][train], source_text_transform)
     target_vocab = build_vocab(wmt14["en"][train], target_text_transform)
+    source_text_transform.trainable = False
+    target_text_transform.trainable = False
 
     logger.info("init data module")
     datamodule = TranslationDataModule(
@@ -81,7 +84,7 @@ def main(fast_dev_run=True):
 
     # export to TorchScript
     with tempfile.TemporaryDirectory() as tmp:
-        export_path = os.path.join(tmp.name, "translation_task.pt")
+        export_path = os.path.join(tmp, "translation_task.pt")
         task.to_torchscript(export_path)
         with open(export_path, "rb") as f:
             ts_module = torch.load(f)
@@ -91,13 +94,27 @@ def main(fast_dev_run=True):
 class Model(nn.Module):
     def __init__(self, source_vocab_size, target_vocab_size):
         super().__init__()
-        self.embed = nn.Embedding(source_vocab_size, 512)
-        self.fc1 = nn.Linear(512, 1024)
-        self.out = nn.Linear(1024, target_vocab_size)
+        self.src_embed = nn.Embedding(source_vocab_size, 512)
+        self.src_encode = nn.Sequential(
+            nn.Linear(512, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 512),
+        )
+        self.tgt_embed = nn.Embedding(target_vocab_size, 512)
+        self.tgt_encode = nn.Sequential(
+            nn.Linear(512, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 512),
+        )
+        self.out = nn.Linear(512, target_vocab_size)
 
-    def forward(self, batch, batch_idx):
-        x = self.embed(batch["source_token_ids"])
-        x = self.fc1(x)
+    def forward(self, batch: Dict[str, torch.Tensor], batch_idx: Optional[int]):
+        x = self.src_embed(batch["source_token_ids"])
+        x = self.src_encode(x)
+        x = x.mean(dim=1, keepdim=True)  # mean pool over source tokens
+
+        x = x + self.tgt_embed(batch["teacher_forcing_token_ids"])
+        x = self.tgt_encode(x)
         x = self.out(x)
         return (x,)
 
