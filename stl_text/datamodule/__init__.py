@@ -1,4 +1,4 @@
-from .doc_classification import DocClassificationDataModule
+from .doc_classification import ConcatPairDocClassificationDataModule, DocClassificationDataModule
 from .translation import TranslationDataModule
 from .contrastive_pretraining import ContrastivePretrainingDataModule
 
@@ -7,6 +7,7 @@ from .contrastive_pretraining import ContrastivePretrainingDataModule
 
 __ALL__ = [
     "ContrastivePretrainingDataModule",
+    "ConcatPairDocClassificationDataModule",
     "DocClassificationDataModule",
     "TranslationDataModule",
 ]

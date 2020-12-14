@@ -88,3 +88,36 @@ class DocClassificationDataModule(LightningDataModule):
             else:
                 padded[column] = torch.tensor(v, dtype=torch.long)
         return padded
+
+
+class ConcatPairDocClassificationDataModule(DocClassificationDataModule):
+    def __init__(self, separator_id: Optional[id] = 0, *args, **kwargs):
+        self.separator_id = separator_id
+        super().__init__(*args, **kwargs)
+
+    def setup(self, stage):
+        self.text_transform = WhitespaceTokenizer()
+        self.label_transform = LabelTransform(["0", "1"])
+        separator = [self.separator_id] if self.separator_id is not None else []
+
+        for split in ("train", "valid", "test"):
+            self.datasets[split] = ds.Dataset.load_from_disk(os.path.join(self.data_path, split))
+            self.datasets[split] = self.datasets[split].map(
+                function=lambda x: {'label_id': self.label_transform(x)},
+                input_columns='label',
+                num_proc=self.num_proc_in_map,
+                load_from_cache_file=self.load_from_cache_file,
+            )
+            self.datasets[split] = self.datasets[split].map(
+                function=lambda x, y: { 'token_ids': self.text_transform(x) + separator + self.text_transform(y)},
+                input_columns=('text1', 'text2'),
+                num_proc=self.num_proc_in_map,
+                load_from_cache_file=self.load_from_cache_file,
+            )
+            self.datasets[split] = self.datasets[split].map(
+                function=lambda x: {'seq_len': len(x)},
+                input_columns='token_ids',
+                num_proc=self.num_proc_in_map,
+                load_from_cache_file=self.load_from_cache_file,
+            )
+            self.datasets[split].set_format(type='torch', columns=['label_id', 'token_ids', 'seq_len'])

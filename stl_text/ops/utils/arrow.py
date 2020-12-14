@@ -9,10 +9,10 @@ import datasets as ds
 logger = logging.getLogger(__name__)
 
 
-def convert_csv_to_arrow(input_path: str, output_path: str = None):
+def convert_csv_to_arrow(input_path: str, output_path: str = None, fieldnames: Tuple[str] = ("text", "label")):
     """ Write labels and texts into HF dataset"""
     columnar_data = defaultdict(list)
-    for row in read_data_from_csv(input_path):
+    for row in read_data_from_csv(input_path, fieldnames):
         for column, value in row.items():
             columnar_data[column].append(value)
 
