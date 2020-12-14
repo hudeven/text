@@ -2,7 +2,7 @@ import csv
 import logging
 import os
 from collections import defaultdict
-from typing import Tuple
+from typing import Any, Dict, Iterator, Tuple
 
 import datasets as ds
 
@@ -28,3 +28,13 @@ def read_data_from_csv(data_path: str, fieldnames: Tuple[str] = ("text", "label"
             csv_file, quotechar='"', delimiter="\t", quoting=csv.QUOTE_ALL, skipinitialspace=True,
             fieldnames=fieldnames
         )
+
+
+def convert_reader_to_arrow(iterator: Iterator[Dict[str, Any]], output_path: str):
+    """ Write labels and texts into HF dataset"""
+    columnar_data = defaultdict(list)
+    for row in iterator:
+        for column, value in row.items():
+            columnar_data[column].append(value)
+    logger.warning(f"converted to arrow and saved to {output_path}")
+    return ds.Dataset.from_dict(columnar_data).save_to_disk(output_path)
