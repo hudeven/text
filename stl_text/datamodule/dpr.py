@@ -77,23 +77,29 @@ class DPRDataModule(LightningDataModule):
                                          drop_last=self.drop_last, key=lambda row: row["query_seq_len"])
         return torch.utils.data.DataLoader(train_dataset, batch_sampler=batch_sampler,
                                            num_workers=1,
-                                           collate_fn=self.collate)
+                                           collate_fn=self.collate_train)
 
     def valid_dataloader(self):
         return torch.utils.data.DataLoader(self.self.datasets["valid"], shuffle=True, batch_size=self.batch_size,
                                            num_workers=1,
-                                           collate_fn=self.collate)
+                                           collate_fn=self.collate_eval)
 
     def test_dataloader(self):
         return torch.utils.data.DataLoader(self.datasets["test"], shuffle=False, batch_size=self.batch_size,
                                            num_workers=1,
-                                           collate_fn=self.collate)
+                                           collate_fn=self.collate_eval)
 
-    def collate(self, batch):
+    def collate_eval(self, batch)
+        return self.collate(batch, False)
+
+    def collate_train(self, batch)
+        return self.collate(batch, True)
+
+    def collate(self, batch, is_train):
         for row in batch:
             # sample positive contexts
             contexts_pos_ids = row["contexts_pos_ids"]
-            if self.train_max_positive > 0:
+            if is_train and self.train_max_positive > 0:
                 if self.train_ctxs_random_sample:
                     contexts_pos_ids = random.sample(contexts_pos_ids, self.train_max_positive) + 
                 else:
@@ -101,7 +107,7 @@ class DPRDataModule(LightningDataModule):
             
             # sample positive contexts
             contexts_neg_ids = row["contexts_neg_ids"]
-            if self.train_max_negative > 0:
+            if is_train and self.train_max_negative > 0:
                 if self.train_ctxs_random_sample:
                     contexts_neg_ids = random.sample(contexts_neg_ids, self.train_max_negative) + 
                 else:
