@@ -16,6 +16,9 @@ class DPRDataModule(LightningDataModule):
     def __init__(self, data_path: str, 
                 vocab_path: Optional[str] = None, 
                 batch_size: int = 32,
+                train_max_positive: int = 10,
+                train_max_negative: int = 10,
+                train_ctxs_random_sample: bool = True, 
                 drop_last: bool = False,
                 num_proc_in_map: int = 1, 
                 distributed: bool = False, 
@@ -29,8 +32,17 @@ class DPRDataModule(LightningDataModule):
         self.distributed = distributed
         self.load_from_cache_file = load_from_cache_file
 
+        self.train_max_positive = train_max_positive
+        self.train_max_negative = train_max_negative
+        self.train_ctxs_random_sample = train_ctxs_random_sample
+
         self.text_transform = None
         self.datasets = {}
+
+    def sample_pos_neg_contexts(ctxs_pos, ctxs_neg):
+        if self.train_sample_ctxs:
+            pos = train_ctxs_random_sample
+        contexts = 
 
     def setup(self, stage):
         self.text_transform = WhitespaceTokenizer(vocab_path=self.vocab_path)
@@ -40,25 +52,17 @@ class DPRDataModule(LightningDataModule):
             dataset_split = dataset_split.map(function=lambda x: {'query_ids': self.text_transform(x)},
                                                             input_columns='question', num_proc=self.num_proc_in_map,
                                                             load_from_cache_file=self.load_from_cache_file)
-            dataset_split = dataset_split.map(function=lambda pos_ctxs, neg_ctxs: 
-                                                                {
-                                                                    'contexts_ids': [self.text_transform(x) for x in pos_ctxs] + [self.text_transform(x) for x in neg_ctxs],
-                                                                    'contexts_positive': [1] * len(pos_ctxs) + [0] * len(neg_ctxs) ,
-                                                                },
-                                                            input_columns=['positive_ctxs','negative_ctxs'], num_proc=self.num_proc_in_map,
+            dataset_split = dataset_split.map(function=lambda ctxs: {'contexts_pos_ids': [self.text_transform(x) for x in ctxs]},
+                                                            input_columns=['positive_ctxs'], num_proc=self.num_proc_in_map,
                                                             load_from_cache_file=self.load_from_cache_file)
+            dataset_split = dataset_split.map(function=lambda ctxs: {'contexts_neg_ids': [self.text_transform(x) for x in ctxs]},
+                                                input_columns=['negative_ctxs'], num_proc=self.num_proc_in_map,
+                                                load_from_cache_file=self.load_from_cache_file)
             dataset_split = dataset_split.map(function=lambda x: {'query_seq_len': len(x)},
                                                             input_columns='query_ids', num_proc=self.num_proc_in_map,
                                                             load_from_cache_file=self.load_from_cache_file)
-            dataset_split = dataset_split.map(function=lambda x: {'contexts_cnt': len(x)},
-                                                            input_columns='contexts_ids', num_proc=self.num_proc_in_map,
-                                                            load_from_cache_file=self.load_from_cache_file)
-            dataset_split = dataset_split.map(function=lambda x: {'contexts_seq_lens': [len(c) for c in x]},
-                                                            input_columns='contexts_ids', num_proc=self.num_proc_in_map,
-                                                            load_from_cache_file=self.load_from_cache_file)
             dataset_split.set_format(type='torch', columns=['query_ids', 'query_seq_len', 
-                                                            'contexts_ids', 'contexts_cnt', 'contexts_seq_lens'
-                                                            'contexts_positive'])
+                                                            'contexts_pos_ids', 'contexts_neg_ids'])
             
             self.datasets[split] = curr_dataset
 
@@ -86,12 +90,35 @@ class DPRDataModule(LightningDataModule):
                                            collate_fn=self.collate)
 
     def collate(self, batch):
+        for row in batch:
+            # sample positive contexts
+            contexts_pos_ids = row["contexts_pos_ids"]
+            if self.train_max_positive > 0:
+                if self.train_ctxs_random_sample:
+                    contexts_pos_ids = random.sample(contexts_pos_ids, self.train_max_positive) + 
+                else:
+                    contexts_pos_ids = contexts_pos_ids[:self.train_max_positive]
+            
+            # sample positive contexts
+            contexts_neg_ids = row["contexts_neg_ids"]
+            if self.train_max_negative > 0:
+                if self.train_ctxs_random_sample:
+                    contexts_neg_ids = random.sample(contexts_neg_ids, self.train_max_negative) + 
+                else:
+                    contexts_neg_ids = contexts_neg_ids[:self.train_max_negative]
+            
+            row["contexts_ids"] = contexts_pos_ids + contexts_neg_ids
+            row["contexts_is_pos"] = [1] * len(contexts_pos_ids) + [0] * len(contexts_neg_ids)
+
+            row.pop("contexts_pos_ids")
+            row.pop("contexts_neg_ids")
+
         return self._collate(batch, pad_columns=('query_ids',
-                                                 'contexts_ids'
-                                                 'contexts_positive'))
+                                                 'contexts_ids',
+                                                 'contexts_is_pos'))
 
     # generic collate(), same as DocClassificationDataModule
-    def _collate(self, batch, pad_columns=("token_ids",)):
+    def _collate(self, batch, pad_columns):
         columnar_data = defaultdict(list)
         for row in batch:
             for column, value in row.items():
