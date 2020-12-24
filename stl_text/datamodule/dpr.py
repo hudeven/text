@@ -12,7 +12,7 @@ from torch.nn.utils.rnn import pad_sequence
 from stl_text.ops.samplers import PoolBatchSampler
 
 
-class DPRDataModule(LightningDataModule):
+class DPRRetrieverDataModule(LightningDataModule):
     def __init__(self, data_path: str, 
                 vocab_path: Optional[str] = None, 
                 batch_size: int = 32,
@@ -39,10 +39,6 @@ class DPRDataModule(LightningDataModule):
         self.text_transform = None
         self.datasets = {}
 
-    def sample_pos_neg_contexts(ctxs_pos, ctxs_neg):
-        if self.train_sample_ctxs:
-            pos = train_ctxs_random_sample
-        contexts = 
 
     def setup(self, stage):
         self.text_transform = WhitespaceTokenizer(vocab_path=self.vocab_path)
@@ -52,11 +48,11 @@ class DPRDataModule(LightningDataModule):
             dataset_split = dataset_split.map(function=lambda x: {'query_ids': self.text_transform(x)},
                                                             input_columns='question', num_proc=self.num_proc_in_map,
                                                             load_from_cache_file=self.load_from_cache_file)
-            dataset_split = dataset_split.map(function=lambda ctxs: {'contexts_pos_ids': [self.text_transform(x) for x in ctxs]},
-                                                            input_columns=['positive_ctxs'], num_proc=self.num_proc_in_map,
+            dataset_split = dataset_split.map(function=lambda ctxs: {'contexts_pos_ids': [self.text_transform(x["text"]) for x in ctxs]},
+                                                            input_columns='positive_ctxs', num_proc=self.num_proc_in_map,
                                                             load_from_cache_file=self.load_from_cache_file)
-            dataset_split = dataset_split.map(function=lambda ctxs: {'contexts_neg_ids': [self.text_transform(x) for x in ctxs]},
-                                                input_columns=['negative_ctxs'], num_proc=self.num_proc_in_map,
+            dataset_split = dataset_split.map(function=lambda ctxs: {'contexts_neg_ids': [self.text_transform(x["text"]) for x in ctxs]},
+                                                input_columns='negative_ctxs', num_proc=self.num_proc_in_map,
                                                 load_from_cache_file=self.load_from_cache_file)
             dataset_split = dataset_split.map(function=lambda x: {'query_seq_len': len(x)},
                                                             input_columns='query_ids', num_proc=self.num_proc_in_map,
@@ -64,7 +60,7 @@ class DPRDataModule(LightningDataModule):
             dataset_split.set_format(type='torch', columns=['query_ids', 'query_seq_len', 
                                                             'contexts_pos_ids', 'contexts_neg_ids'])
             
-            self.datasets[split] = curr_dataset
+            self.datasets[split] = dataset_split
 
     def forward(self, text):
         return self.text_transform(text)
@@ -89,19 +85,22 @@ class DPRDataModule(LightningDataModule):
                                            num_workers=1,
                                            collate_fn=self.collate_eval)
 
-    def collate_eval(self, batch)
+    def collate_eval(self, batch):
         return self.collate(batch, False)
 
-    def collate_train(self, batch)
+    def collate_train(self, batch):
         return self.collate(batch, True)
 
     def collate(self, batch, is_train):
+        """
+            Combines pos and neg contexts. Samples randomly limited number of pos/neg contexts if is_train is True.
+        """
         for row in batch:
             # sample positive contexts
             contexts_pos_ids = row["contexts_pos_ids"]
             if is_train and self.train_max_positive > 0:
                 if self.train_ctxs_random_sample:
-                    contexts_pos_ids = random.sample(contexts_pos_ids, self.train_max_positive) + 
+                    contexts_pos_ids = random.sample(contexts_pos_ids, self.train_max_positive) 
                 else:
                     contexts_pos_ids = contexts_pos_ids[:self.train_max_positive]
             
@@ -109,7 +108,7 @@ class DPRDataModule(LightningDataModule):
             contexts_neg_ids = row["contexts_neg_ids"]
             if is_train and self.train_max_negative > 0:
                 if self.train_ctxs_random_sample:
-                    contexts_neg_ids = random.sample(contexts_neg_ids, self.train_max_negative) + 
+                    contexts_neg_ids = random.sample(contexts_neg_ids, self.train_max_negative) 
                 else:
                     contexts_neg_ids = contexts_neg_ids[:self.train_max_negative]
             

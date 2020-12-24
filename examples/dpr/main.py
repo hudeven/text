@@ -8,14 +8,17 @@ import torch
 from torch.optim import AdamW
 from pytorch_lightning import Trainer, LightningModule
 from stl_text.ops.utils.arrow import convert_reader_to_arrow
-from stl_text.datamodule import ContrastivePretrainingDataModule
+from stl_text.datamodule.dpr import DPRRetrieverDataModule
 from stl_text.models import RobertaModel
 from copy import deepcopy
+from task import DenseRetrieverTask
+
+
 
 
 def train(data_path:str, max_epochs: int, gpus: int, fast_dev_run: bool = False):
     # convert jsonl to arrow format (only required for the first time)
-    for split in ("train.json", "valid.json", "test.json"):
+    for split in ("train.jsonl", "valid.jsonl", "test.jsonl"):
         split_path = os.path.join(data_path, split)
         print(split_path)
         with jsonlines.open(split_path) as reader:
@@ -23,13 +26,18 @@ def train(data_path:str, max_epochs: int, gpus: int, fast_dev_run: bool = False)
                 reader, output_path=os.path.splitext(split_path)[0])
 
     # setup datamodule
-    datamodule = DenseRetrieverDataModule(
-        data_path=data_path, batch_size=4, drop_last=True)
+    datamodule = DPRRetrieverDataModule(
+            data_path=data_path, 
+            batch_size=4, drop_last=True,
+            train_max_positive=5,
+            train_max_negative=5,
+            train_ctxs_random_sample=True, 
+    )
     datamodule.setup("fit")
 
     # Model for query encoding
     query_model = RobertaModel(
-        vocab_size=5000,
+        vocab_size=10000,
         embedding_dim=512,
         num_attention_heads=1,
         num_encoder_layers=1,
@@ -38,13 +46,10 @@ def train(data_path:str, max_epochs: int, gpus: int, fast_dev_run: bool = False)
     )
     context_model = deepcopy(query_model)
 
-    optimizer = AdamW(model.parameters(), lr=0.01)
-
     task = DenseRetrieverTask(
         query_model=query_model,
         context_model=context_model,
-        datamodule=datamodule,
-        optimizer=optimizer
+        datamodule=datamodule
     )
 
     # train model
@@ -105,7 +110,7 @@ if __name__ == "__main__":
     parser.add_argument('--fast_dev_run', action="store_true",
                         help='fast train with a iteration')
     parser.add_argument(
-        '--data', type=str, default="examples/dpr/data/squad1_tiny/data/retriever", help='The path to the data dir')
+        '--data_path', type=str, default="./data/squad1_tiny/data/retriever", help='The path to the data dir')
 
     args = parser.parse_args()
 
@@ -114,4 +119,4 @@ if __name__ == "__main__":
     fast_dev_run = args.fast_dev_run
     data_path = args.data_path
 
-    task = train(data_path, max_epochs, gpus, fast_dev_run=fast_dev_run)
+    train(data_path, max_epochs, gpus, fast_dev_run=fast_dev_run)
