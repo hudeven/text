@@ -31,20 +31,28 @@ def train(data_path:str, max_epochs: int, gpus: int, fast_dev_run: bool = False)
             batch_size=4, drop_last=True,
             train_max_positive=5,
             train_max_negative=5,
-            train_ctxs_random_sample=True, 
+            train_ctxs_random_sample=True,
+            vocab_trainable=True 
     )
     datamodule.setup("fit")
 
     # Model for query encoding
     query_model = RobertaModel(
-        vocab_size=10000,
+        vocab_size=20000,
         embedding_dim=512,
         num_attention_heads=1,
         num_encoder_layers=1,
         output_dropout=0.4,
         out_dim=20,
     )
-    context_model = deepcopy(query_model)
+    context_model = RobertaModel(
+        vocab_size=20000,
+        embedding_dim=512,
+        num_attention_heads=1,
+        num_encoder_layers=1,
+        output_dropout=0.4,
+        out_dim=20,
+    )
 
     task = DenseRetrieverTask(
         query_model=query_model,
@@ -57,7 +65,7 @@ def train(data_path:str, max_epochs: int, gpus: int, fast_dev_run: bool = False)
         max_epochs=max_epochs,
         gpus=gpus,
         fast_dev_run=fast_dev_run,
-        accelerator="ddp" if gpus > 0 else None,
+        accelerator=None, #"ddp" if gpus > 0 else None,
         replace_sampler_ddp=False
     )
     trainer.fit(task, datamodule=datamodule)
@@ -86,6 +94,7 @@ def select_data_for_debug(data_path="../DPR/data/squad1/data/retriever/squad1-de
     """
     with open(data_path) as f_in:
         data = json.load(f_in)
+        # select only examples with both positive and negative contexts.
         data_selected = [x for x in data if len(x["positive_ctxs"]) > 0 and len(
             x["negative_ctxs"]) > 0 and len(x["hard_negative_ctxs"]) > 0]
         print("Total items with non-empty contexts:{}".format(len(data_selected)))
