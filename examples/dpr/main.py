@@ -14,9 +14,7 @@ from copy import deepcopy
 from task import DenseRetrieverTask
 
 
-
-
-def train(data_path:str, max_epochs: int, gpus: int, fast_dev_run: bool = False):
+def train(data_path:str, max_epochs: int, gpus: int, batch_size:int, fast_dev_run: bool = False):
     # convert jsonl to arrow format (only required for the first time)
     for split in ("train.jsonl", "valid.jsonl", "test.jsonl"):
         split_path = os.path.join(data_path, split)
@@ -28,9 +26,10 @@ def train(data_path:str, max_epochs: int, gpus: int, fast_dev_run: bool = False)
     # setup datamodule
     datamodule = DPRRetrieverDataModule(
             data_path=data_path, 
-            batch_size=4, drop_last=True,
-            train_max_positive=5,
-            train_max_negative=5,
+            batch_size=batch_size, 
+            drop_last=True,
+            train_max_positive=1,
+            train_max_negative=7,
             train_ctxs_random_sample=True,
             vocab_trainable=True 
     )
@@ -45,6 +44,7 @@ def train(data_path:str, max_epochs: int, gpus: int, fast_dev_run: bool = False)
         output_dropout=0.4,
         out_dim=20,
     )
+
     context_model = RobertaModel(
         vocab_size=20000,
         embedding_dim=512,
@@ -76,39 +76,40 @@ def train(data_path:str, max_epochs: int, gpus: int, fast_dev_run: bool = False)
     return task
 
 
-def select_data_for_debug(data_path="../DPR/data/squad1/data/retriever/squad1-dev.json", 
-                          out_path="examples/dpr/data/squad1_tiny/data/retriever", 
-                          num_items=[10, 10, 10]):
+def select_data_for_debug(original_path="../DPR/data/nq3/data/retriever/squad1-dev.json", 
+                          out_path="examples/dpr/data/nq3_tiny/data/retriever/train.jsonl", 
+                          num_items=10):
     """
     This generates jsonl files from 
     the input data from https://github.com/facebookresearch/DPR/blob/master/data/download_data.py
     ```
-    # Get some data
+    # Get data
     # Clone DPR - https://github.com/facebookresearch/DPR
     cd ../
     git clone git@github.com:facebookresearch/DPR.git
     cd DPR
     pip install .
-    python data/download_data.py --resource data.retriever.squad1-dev --output_dir data/squad1
+    python data/download_data.py --resource data.retriever.nq-dev --output_dir data/nq
+    #python data/download_data.py --resource data.retriever.squad1-dev --output_dir data/squad1
+    
     ```
     """
-    with open(data_path) as f_in:
+    with open(original_path) as f_in:
         data = json.load(f_in)
         # select only examples with both positive and negative contexts.
         data_selected = [x for x in data if len(x["positive_ctxs"]) > 0 and len(
             x["negative_ctxs"]) > 0 and len(x["hard_negative_ctxs"]) > 0]
         print("Total items with non-empty contexts:{}".format(len(data_selected)))
 
-        if isinstance(num_items, int):
-            num_items = 3 * [num_items]
-
-        for split_id, split in enumerate(["train.jsonl", "valid.jsonl", "test.jsonl"]):
-            split_path = os.path.join(out_path, split)
-            print(split_path)
-            with open(split_path, mode="w") as f_out:
-                for item in data_selected[:num_items[split_id]]:
-                    f_out.write(json.dumps(item))
-                    f_out.write("\n")
+        out_dir = os.path.dirname(out_path)
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+            
+        print(out_path)
+        with open(out_path, mode="w") as f_out:
+            for item in data_selected[:num_items]:
+                f_out.write(json.dumps(item))
+                f_out.write("\n")
 
 
 if __name__ == "__main__":
@@ -118,14 +119,32 @@ if __name__ == "__main__":
     parser.add_argument('--gpus', type=int, default=0, help='num of gpus')
     parser.add_argument('--fast_dev_run', action="store_true",
                         help='fast train with a iteration')
+    parser.add_argument('--batch_size', type=int, default=4,
+                        help='Batch size')
     parser.add_argument(
-        '--data_path', type=str, default="./data/squad1_tiny/data/retriever", help='The path to the data dir')
+        '--data_path', type=str, default="examples/dpr/data/nq3_tiny/data/retriever", help='The path to the data dir')
 
+ 
+    # Select data
+    parser.add_argument('--sel_data', action="store_true",
+                        help='Select original data and convert to jsonl')
+    parser.add_argument('--sel_raw_path', type=str, default="../DPR/data/nq3/data/retriever/nq-dev.json", help='Inpuit data dir for preparation')
+    parser.add_argument('--sel_out_path', type=str, default="examples/dpr/data/nq3_tiny/data/retriever/train.jsonl", help='The path to the data dir')
+    parser.add_argument('--sel_num_items', type=int, default=10, help='Number items to select')
+
+    # Parse args
     args = parser.parse_args()
 
     max_epochs = args.max_epochs
     gpus = args.gpus
     fast_dev_run = args.fast_dev_run
     data_path = args.data_path
+    batch_size = args.batch_size
 
-    train(data_path, max_epochs, gpus, fast_dev_run=fast_dev_run)
+    sel_data = args.sel_data
+    if sel_data:
+        select_data_for_debug(original_path=args.sel_raw_path, 
+                          out_path=args.sel_out_path, 
+                          num_items=args.sel_num_items)
+    else:
+        train(data_path, max_epochs, gpus, batch_size=batch_size, fast_dev_run=fast_dev_run)
