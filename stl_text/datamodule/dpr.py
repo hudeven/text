@@ -34,9 +34,10 @@ class DPRRetrieverDataModule(LightningDataModule):
     def __init__(self, data_path: str, 
                 vocab_path: Optional[str] = None, 
                 batch_size: int = 32,
-                train_max_positive: int = 10,
-                train_max_negative: int = 10,
-                train_ctxs_random_sample: bool = True, 
+                max_positive: int = 1, # currently, like the original paper only 1 is supported
+                max_negative: int = 7,
+                ctxs_random_sample: bool = True, 
+                limit_eval: bool = False, # Limits pos_neg with test
                 drop_last: bool = False,
                 num_proc_in_map: int = 1, 
                 distributed: bool = False, 
@@ -52,9 +53,13 @@ class DPRRetrieverDataModule(LightningDataModule):
         self.distributed = distributed
         self.load_from_cache_file = load_from_cache_file
 
-        self.train_max_positive = train_max_positive
-        self.train_max_negative = train_max_negative
-        self.train_ctxs_random_sample = train_ctxs_random_sample
+        if max_positive>1:
+            raise ValueError("Only 1 positive example is supported. Update the loss accordingly to support more than 1!")
+        
+        self.max_positive = max_positive
+        self.max_negative = max_negative
+        self.ctxs_random_sample = ctxs_random_sample
+        self.limit_eval = limit_eval
 
         self.text_transform = None
         self.datasets = {}
@@ -120,19 +125,19 @@ class DPRRetrieverDataModule(LightningDataModule):
         for row in batch:
             # sample positive contexts
             contexts_pos_ids = row["contexts_pos_ids"]
-            if is_train and self.train_max_positive > 0:
-                if self.train_ctxs_random_sample:
-                    contexts_pos_ids = random.sample(contexts_pos_ids, min(len(contexts_pos_ids),self.train_max_positive))
+            if (is_train or self.limit_eval) and self.max_positive > 0:
+                if is_train and self.ctxs_random_sample:
+                    contexts_pos_ids = random.sample(contexts_pos_ids, min(len(contexts_pos_ids),self.max_positive))
                 else:   
-                    contexts_pos_ids = contexts_pos_ids[:self.train_max_positive]
+                    contexts_pos_ids = contexts_pos_ids[:self.max_positive]
             
             # sample positive contexts
             contexts_neg_ids = row["contexts_neg_ids"]
-            if is_train and self.train_max_negative > 0:
-                if self.train_ctxs_random_sample:
-                    contexts_neg_ids = random.sample(contexts_neg_ids, self.train_max_negative) 
+            if (is_train or self.limit_eval) and self.max_negative > 0:
+                if is_train and self.ctxs_random_sample:
+                    contexts_neg_ids = random.sample(contexts_neg_ids, self.max_negative) 
                 else:
-                    contexts_neg_ids = contexts_neg_ids[:self.train_max_negative]
+                    contexts_neg_ids = contexts_neg_ids[:self.max_negative]
             
             row["contexts_ids"] = contexts_pos_ids + contexts_neg_ids
             row["contexts_is_pos"] = torch.Tensor([1] * len(contexts_pos_ids) + [0] * len(contexts_neg_ids))
