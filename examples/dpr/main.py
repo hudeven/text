@@ -28,30 +28,31 @@ def train(data_path:str, max_epochs: int, gpus: int, batch_size:int, fast_dev_ru
             data_path=data_path, 
             batch_size=batch_size, 
             drop_last=True,
-            train_max_positive=1,
-            train_max_negative=7,
-            train_ctxs_random_sample=True,
+            max_positive=1,
+            max_negative=7,
+            ctxs_random_sample=False,
+            limit_eval=True, 
             vocab_trainable=True 
     )
     datamodule.setup("fit")
 
     # Model for query encoding
     query_model = RobertaModel(
-        vocab_size=20000,
-        embedding_dim=512,
+        vocab_size=100000,
+        embedding_dim=100,
         num_attention_heads=1,
         num_encoder_layers=1,
-        output_dropout=0.4,
-        out_dim=20,
+        output_dropout=0.2,
+        out_dim=50,
     )
 
     context_model = RobertaModel(
-        vocab_size=20000,
-        embedding_dim=512,
+        vocab_size=100000,
+        embedding_dim=100,
         num_attention_heads=1,
         num_encoder_layers=1,
-        output_dropout=0.4,
-        out_dim=20,
+        output_dropout=0.2,
+        out_dim=50,
     )
 
     task = DenseRetrieverTask(
