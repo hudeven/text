@@ -103,28 +103,35 @@ class DenseRetrieverTask(LightningModule):
         # With this data we dont have the gold rank but many positive and negative contexts. 
         # So we will count what number of positives are in top N
 
-        total_avg_rank, total_count = 0, 0
+        total_avg_rank, total_max_rank, total_count = 0, 0, 0
         for i, (pred_scores, target_labels, mask) in enumerate(outputs):
             values, indices = torch.sort(pred_scores, dim=1, descending=True)
-            avg_rank = torch.sum(indices * target_labels, dim=1)
+
+            # calc the avg rank for positive passages element-wise
+            avg_rank = torch.sum(indices * target_labels, dim=1).float() / target_labels.sum(dim=1) 
             total_avg_rank += avg_rank.sum()
+            
+            # the number of passages is the max rank
+            total_max_rank += torch.sum(mask) 
             total_count += pred_scores.size(0)
 
-        return total_avg_rank, total_count
+        return total_avg_rank, total_max_rank, total_count
 
     def validation_step(self, batch, batch_idx):
         return self._eval_step(batch, batch_idx)
 
     def validation_epoch_end(self, valid_outputs):
-        total_avg_rank, total_count = self._eval_epoch_end(valid_outputs)
-        self.log('total_avg_rank', total_count, prog_bar=True)
+        total_avg_rank, total_max_rank, total_count = self._eval_epoch_end(valid_outputs)
         self.log('test_avr_rank', total_avg_rank/total_count, prog_bar=True)
+        self.log('total_count', total_count, prog_bar=True)
+        self.log('max_rank_avg', total_max_rank.float()/total_count, prog_bar=True)
 
     def test_step(self, batch, batch_idx):
         return self._eval_step(batch, batch_idx)
 
     def test_epoch_end(self, test_outputs):
-        total_avg_rank, total_count = self._eval_epoch_end(test_outputs)
-        self.log('total_avg_rank', total_count, prog_bar=True)
+        total_avg_rank, total_max_rank, total_count = self._eval_epoch_end(test_outputs)
         self.log('test_avr_rank', total_avg_rank/total_count, prog_bar=True)
+        self.log('total_count', total_count, prog_bar=True)
+        self.log('max_rank_avg', total_max_rank//total_count, prog_bar=True)
 
