@@ -17,6 +17,8 @@ class DenseRetrieverTask(LightningModule):
         context_model: nn.Module,
         datamodule: LightningDataModule,
         lr: float = 1e-3,
+        in_batch_train: bool = True,
+        in_batch_eval: bool = False,
     ):
         super().__init__()
         
@@ -27,10 +29,11 @@ class DenseRetrieverTask(LightningModule):
         else:
             self.context_model = context_model
 
+        self.in_batch_train = in_batch_train
+        self.in_batch_eval = in_batch_eval
         self.loss = nn.NLLLoss()
         self.lr = lr
-   
-
+        
     def _encode_sequence(self, token_ids, encoder_model):
         encoded_seq = encoder_model(token_ids) # bs x d
         return encoded_seq
@@ -40,7 +43,17 @@ class DenseRetrieverTask(LightningModule):
         contexts_mask = torch.greater(contexts_ids.sum(-1), 0).long()
         return contexts_mask
 
-    def forward(self, query_ids, contexts_ids):
+    def forward(self, query_ids, contexts_ids, in_batch):
+        if in_batch:
+            return self.forward_in_batch(query_ids, contexts_ids)
+        else:
+            return self.forward_multi_contexts(query_ids, contexts_ids)
+
+    def forward_multi_contexts(self, query_ids, contexts_ids):
+        """
+            We use this when each query comes with multiple contexts (1 positive + N negative) 
+            and we want to compute the similarity only on per-query basis.
+        """
         # encode query and contexts
         query_repr = self._encode_sequence(query_ids, self.query_model) # bs x d
 
@@ -56,39 +69,80 @@ class DenseRetrieverTask(LightningModule):
         
         return softmax_scores
 
+    def forward_in_batch(self, query_ids, contexts_ids):
+        """
+            We use this when each query comes with only 1 context (positive) 
+            and the negatives are selected from other contexts in the batch.
+        """
+        # encode query and contexts
+        query_repr = self._encode_sequence(query_ids, self.query_model) # bs x d
+        contexts_repr = self._encode_sequence(contexts_ids, self.context_model) # bs x d
+        
+        scores = torch.matmul(query_repr, contexts_repr.transpose(0,1))
+        
+        log_softmax_scores = F.softmax(scores, 1)
+        
+        return log_softmax_scores
+
 
     def configure_optimizers(self):
         return AdamW(self.parameters(), lr=self.lr)
 
     def training_step(self, batch, batch_idx):
+        """
+            This receives queries, each with mutliple contexts. 
+        """
         query_ids = batch["query_ids"] # bs x tokens
-        contexts_ids = batch["contexts_ids"] # bs x ctx_cnt x ctx_len
+        contexts_ids_multi = batch["contexts_ids"] # bs x ctx_cnt x ctx_len
         contexts_is_pos = batch["contexts_is_pos"] # bs x ctx_cnt
         
-        pred_context_scores = self(query_ids, contexts_ids)
-        loss = self.loss(pred_context_scores, torch.argmax(contexts_is_pos.long(), dim=1))
+        if self.in_batch_train:
+            # In this case we only need 1 positive context
+            contexts_ids  = contexts_ids_multi[:,0,:] # the first one is the positive
+            pred_context_scores = self(query_ids, contexts_ids, in_batch=True) # bs x bs
+            positive = torch.arange(0, query_ids.size(0), dtype=torch.long)
+            #contexts_mask = torch.ones(positive.size())
+            loss = self.loss(torch.log(pred_context_scores), positive)
+        else:
+            pred_context_scores = self(query_ids, contexts_ids_multi, in_batch=False) # bs x ctx_cnt
+            #contexts_mask = self._get_mask(contexts_ids_multi)
+            positive = torch.argmax(contexts_is_pos.long(), dim=1)
+            loss = self.loss(torch.log(pred_context_scores), positive, dim=1)
         
+        # calc ranks for training epoch
+        values, indices = torch.sort(pred_context_scores, dim=1, descending=True)
+        avg_rank = (indices * F.one_hot(positive)).sum(-1).float().mean()
+
+        self.log("batch_avg_rank", avg_rank, prog_bar=True, on_epoch=True, sync_dist=True)
+        self.log("train_loss", loss, prog_bar=True, on_epoch=True, sync_dist=True)
+
         return loss
 
-    def _get_correct_predictions_cnt(self, pred_scores, correct, mask):
-        """
-            Predictions with max score are considered "correct".             
-        """
-        max_score, max_idxs = torch.max(pred_scores, 1)
-        correct_predictions = (max_idxs == torch.tensor(correct).to(max_idxs.device)) * mask
-        correct_predictions_count = correct_predictions.sum()
-
-        return correct_predictions_count
+   
+    # def training_epoch_end(self, train_outputs):
+    #     total_avg_rank, total_max_rank, total_count, loss = self._eval_epoch_end(train_outputs)
+    #     self.log('train_avg_rank', total_avg_rank/total_count, prog_bar=True)
+    #     self.log('total_count', total_count, prog_bar=True)
+    #     self.log('max_rank_avg', total_max_rank/total_count, prog_bar=True)
+    #     self.log('loss', loss, prog_bar=True)
 
     def _eval_step(self, batch, batch_idx):
         query_ids = batch["query_ids"] # bs x tokens
-        contexts_ids = batch["contexts_ids"] # bs x ctx_cnt x ctx_len
+        contexts_ids_multi = batch["contexts_ids"] # bs x ctx_cnt x ctx_len
         contexts_is_pos = batch["contexts_is_pos"] # bs x ctx_cnt
         
-        pred_context_scores = self(query_ids, contexts_ids)
-        contexts_mask = self._get_mask(contexts_ids)
+        if self.in_batch_eval:
+            contexts_ids  = contexts_ids_multi[:,0,:] # the first one is the positive
+            pred_context_scores = self(query_ids, contexts_ids, in_batch=True) # bs x bs
+            contexts_is_pos = F.one_hot(torch.arange(0, query_ids.size(0)))
+            contexts_mask = torch.ones(contexts_is_pos.size())
+            loss = self.loss(torch.log(pred_context_scores), torch.arange(0, query_ids.size(0)))
+        else:
+            pred_context_scores = self(query_ids, contexts_ids_multi, in_batch=False)
+            contexts_mask = self._get_mask(contexts_ids_multi)
+            loss = self.loss(torch.log(pred_context_scores), torch.argmax(contexts_is_pos.long(), dim=1))
 
-        return pred_context_scores, contexts_is_pos, contexts_mask
+        return pred_context_scores, contexts_is_pos, contexts_mask, loss
 
     def _mask_before_softmax(self, value, mask):
         """
@@ -104,7 +158,8 @@ class DenseRetrieverTask(LightningModule):
         # So we will count what number of positives are in top N
 
         total_avg_rank, total_max_rank, total_count = 0, 0, 0
-        for i, (pred_scores, target_labels, mask) in enumerate(outputs):
+        total_loss = 0
+        for i, (pred_scores, target_labels, mask, loss) in enumerate(outputs):
             values, indices = torch.sort(pred_scores, dim=1, descending=True)
 
             # calc the avg rank for positive passages element-wise
@@ -115,23 +170,27 @@ class DenseRetrieverTask(LightningModule):
             total_max_rank += torch.sum(mask) 
             total_count += pred_scores.size(0)
 
-        return total_avg_rank, total_max_rank, total_count
+            total_loss += loss
+
+        return total_avg_rank, total_max_rank, total_count, total_loss/(i+1)
 
     def validation_step(self, batch, batch_idx):
         return self._eval_step(batch, batch_idx)
 
     def validation_epoch_end(self, valid_outputs):
-        total_avg_rank, total_max_rank, total_count = self._eval_epoch_end(valid_outputs)
-        self.log('test_avr_rank', total_avg_rank/total_count, prog_bar=True)
+        total_avg_rank, total_max_rank, total_count, loss = self._eval_epoch_end(valid_outputs)
+        self.log('valid_avg_rank', total_avg_rank/total_count, prog_bar=True)
         self.log('total_count', total_count, prog_bar=True)
-        self.log('max_rank_avg', total_max_rank.float()/total_count, prog_bar=True)
+        self.log('max_rank', total_max_rank.float()/total_count, prog_bar=True)
+        self.log('loss', loss, prog_bar=True)
 
     def test_step(self, batch, batch_idx):
         return self._eval_step(batch, batch_idx)
 
     def test_epoch_end(self, test_outputs):
-        total_avg_rank, total_max_rank, total_count = self._eval_epoch_end(test_outputs)
-        self.log('test_avr_rank', total_avg_rank/total_count, prog_bar=True)
+        total_avg_rank, total_max_rank, total_count, loss = self._eval_epoch_end(test_outputs)
+        self.log('test_avg_rank', total_avg_rank/total_count, prog_bar=True)
         self.log('total_count', total_count, prog_bar=True)
-        self.log('max_rank_avg', total_max_rank//total_count, prog_bar=True)
+        self.log('max_rank', total_max_rank/total_count, prog_bar=True)
+        self.log('loss', loss, prog_bar=True)
 

@@ -39,26 +39,28 @@ def train(data_path:str, max_epochs: int, gpus: int, batch_size:int, fast_dev_ru
     # Model for query encoding
     query_model = RobertaModel(
         vocab_size=100000,
-        embedding_dim=100,
+        embedding_dim=200,
         num_attention_heads=1,
         num_encoder_layers=1,
         output_dropout=0.2,
-        out_dim=50,
+        out_dim=20,
     )
 
     context_model = RobertaModel(
         vocab_size=100000,
-        embedding_dim=100,
+        embedding_dim=200,
         num_attention_heads=1,
         num_encoder_layers=1,
         output_dropout=0.2,
-        out_dim=50,
+        out_dim=20,
     )
 
     task = DenseRetrieverTask(
         query_model=query_model,
         context_model=context_model,
-        datamodule=datamodule
+        datamodule=datamodule,
+        in_batch_train=True,
+        in_batch_eval=True
     )
 
     # train model
@@ -120,7 +122,7 @@ if __name__ == "__main__":
     parser.add_argument('--gpus', type=int, default=0, help='num of gpus')
     parser.add_argument('--fast_dev_run', action="store_true",
                         help='fast train with a iteration')
-    parser.add_argument('--batch_size', type=int, default=4,
+    parser.add_argument('--batch_size', type=int, default=5,
                         help='Batch size')
     parser.add_argument(
         '--data_path', type=str, default="examples/dpr/data/nq3_tiny/data/retriever", help='The path to the data dir')
