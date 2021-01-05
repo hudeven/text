@@ -8,6 +8,7 @@
 
 to install cpu version on Linux:
 > pip install --pre torch torchtext -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html;
+> pip install --upgrade --pre torch torchtext -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html;
 
 to install cuda 10.1 version on Linux:
 > pip install --pre torch torchtext -f https://download.pytorch.org/whl/nightly/cu101/torch_nightly.html;
