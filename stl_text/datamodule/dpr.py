@@ -131,7 +131,7 @@ class DPRRetrieverDataModule(LightningDataModule):
                 else:   
                     contexts_pos_ids = contexts_pos_ids[:self.max_positive]
             
-            # sample positive contexts
+            # sample negative contexts
             contexts_neg_ids = row["contexts_neg_ids"]
             if (is_train or self.limit_eval) and self.max_negative > 0:
                 if is_train and self.ctxs_random_sample:
