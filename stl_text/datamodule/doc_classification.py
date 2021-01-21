@@ -9,6 +9,30 @@ from stl_text.ops.tokenizers import WhitespaceTokenizer
 from stl_text.ops.transforms import LabelTransform
 from torch.nn.utils.rnn import pad_sequence
 from stl_text.ops.samplers import PoolBatchSampler
+from iopath.common.file_io import PathManager
+
+from torchtext.experimental.transforms import (
+    sentencepiece_tokenizer,
+    PRETRAINED_SP_MODEL,
+)
+from torchtext.experimental.vocab import (
+    build_vocab_from_text_file,
+    Vocab,
+)
+
+from torchtext._torchtext import Vocab as VocabPybind 
+
+from torchtext.utils import download_from_url
+import torch.nn as nn
+
+class TextToIndices(nn.Module):
+    def __init__(self,tokenizer,vocab):
+        super(TextToIndices,self).__init__()
+        self.tokenizer = tokenizer
+        self.vocab = vocab
+    
+    def forward(self,x:str):
+        return self.vocab(self.tokenizer(x))
 
 
 class DocClassificationDataModule(LightningDataModule):
@@ -27,17 +51,23 @@ class DocClassificationDataModule(LightningDataModule):
         self.text_transform = None
         self.label_transform = None
         self.datasets = {}
+        self.unk_token = '<unk>'
 
     def setup(self, stage):
-        # torchtext's spm_tokenizer and vocab are not pickleable and will fail dataset.map()
-        # tokenizer = spm_tokenizer(download_from_url(PRETRAINED_SP_MODEL["text_unigram_25000"]))
-        # vocab = build_fairseq_vocab("vocab_tiny.txt")
+        tokenizer = sentencepiece_tokenizer(download_from_url(PRETRAINED_SP_MODEL["text_unigram_25000"])).to_ivalue()
+        if self.vocab_path:
+            path_manager = PathManager()
+            with path_manager.open(self.vocab_path, "r",encoding='utf-8') as f:
+                vocab = build_vocab_from_text_file(f,torch.jit.script(tokenizer))
+        else:
+            vocab = Vocab(VocabPybind([self.unk_token],self.unk_token))
 
-        # sequential_transforms is not torchscriptable
-        # self.text_transform = sequential_transforms(tokenizer, vocab)
+        vocab = vocab.to_ivalue()
 
-        # use dummy text_transform and label_transform to get rid of pickling and torchscript issues
-        self.text_transform = WhitespaceTokenizer(vocab_path=self.vocab_path)
+        self.text_transform = TextToIndices(tokenizer,vocab)
+
+        # usage of below tokenizer is same as above except that basic_english_normalize() is used as tokenizer
+        # self.text_transform = WhitespaceTokenizer(vocab_path=self.vocab_path)
         self.label_transform = LabelTransform(["0", "1"])
 
         for split in ("train", "valid", "test"):
