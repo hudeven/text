@@ -1,4 +1,7 @@
+datasets
 iopath
 torch
-datasets
+pandas
+pyarrow
 pytorch-lightning==1.1
+tqdm
