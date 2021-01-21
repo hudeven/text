@@ -8,14 +8,19 @@ from torchtext.experimental.vocab import (
     Vocab,
 )
 from torchtext._torchtext import Vocab as VocabPybind 
-import torchtext.experimental.transforms as transforms
 
+class SplitTextModule(nn.Module):
+    def __init__(self):
+        super(SplitTextModule,self).__init__()
+
+    def forward(self,x:str):
+        return x.split()
 
 class WhitespaceTokenizer(nn.Module): 
     def __init__(self, vocab_path: Optional[str] = None, trainable: bool = False):
         super(WhitespaceTokenizer, self).__init__()
         self.trainable = trainable
-        self.tokenizer = transforms.basic_english_normalize().to_ivalue()
+        self.tokenizer = SplitTextModule()
         self.unk_token = '<unk>'
 
         if vocab_path:
@@ -25,12 +30,13 @@ class WhitespaceTokenizer(nn.Module):
         else:
             self.vocab = Vocab(VocabPybind([self.unk_token],self.unk_token))
 
-        self.vocab = self.vocab.to_ivalue()
+        self.vocab = self.vocab.to_ivalue() #Remove to_ivalue() PR: https://github.com/pytorch/text/pull/1080
 
 
     def forward(self, text: str) -> List[int]:
         tokens = self.tokenizer(text)
         return self.numberize(tokens)
+
 
     def numberize(self, tokens: List[str]) -> List[int]:
         token_ids = self.vocab(tokens)

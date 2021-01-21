@@ -14,6 +14,7 @@ from iopath.common.file_io import PathManager
 from torchtext.experimental.transforms import (
     sentencepiece_tokenizer,
     PRETRAINED_SP_MODEL,
+    TextSequentialTransforms,
 )
 from torchtext.experimental.vocab import (
     build_vocab_from_text_file,
@@ -24,15 +25,6 @@ from torchtext._torchtext import Vocab as VocabPybind
 
 from torchtext.utils import download_from_url
 import torch.nn as nn
-
-class TextToIndices(nn.Module):
-    def __init__(self,tokenizer,vocab):
-        super(TextToIndices,self).__init__()
-        self.tokenizer = tokenizer
-        self.vocab = vocab
-    
-    def forward(self,x:str):
-        return self.vocab(self.tokenizer(x))
 
 
 class DocClassificationDataModule(LightningDataModule):
@@ -53,21 +45,27 @@ class DocClassificationDataModule(LightningDataModule):
         self.datasets = {}
         self.unk_token = '<unk>'
 
-    def setup(self, stage):
-        tokenizer = sentencepiece_tokenizer(download_from_url(PRETRAINED_SP_MODEL["text_unigram_25000"])).to_ivalue()
-        if self.vocab_path:
-            path_manager = PathManager()
-            with path_manager.open(self.vocab_path, "r",encoding='utf-8') as f:
-                vocab = build_vocab_from_text_file(f,torch.jit.script(tokenizer))
+    def setup(self, stage, tokenizer_type: str = 'sentencepiece'):
+        if tokenizer_type=='sentencepiece':
+            tokenizer = sentencepiece_tokenizer(download_from_url(PRETRAINED_SP_MODEL["text_unigram_25000"])).to_ivalue()
+            if self.vocab_path:
+                path_manager = PathManager()
+                with path_manager.open(self.vocab_path, "r",encoding='utf-8') as f:
+                    vocab = build_vocab_from_text_file(f,torch.jit.script(tokenizer))
+            else:
+                vocab = Vocab(VocabPybind([self.unk_token],self.unk_token))
+
+            vocab = vocab.to_ivalue() #TODO Remove to_ivalue() PR: https://github.com/pytorch/text/pull/1080
+
+            self.text_transform = TextSequentialTransforms()
+            self.text_transform.add_module('tokenizer',tokenizer)
+            self.text_transform.add_module('vocabulary',vocab)
+        elif tokenizer_type=='whitespace':
+            self.text_transform = WhitespaceTokenizer(vocab_path=self.vocab_path)
         else:
-            vocab = Vocab(VocabPybind([self.unk_token],self.unk_token))
+            raise NotImplementedError("Tokenizer [{}] is not yet supported".format(tokenizer_type))
+        
 
-        vocab = vocab.to_ivalue()
-
-        self.text_transform = TextToIndices(tokenizer,vocab)
-
-        # usage of below tokenizer is same as above except that basic_english_normalize() is used as tokenizer
-        # self.text_transform = WhitespaceTokenizer(vocab_path=self.vocab_path)
         self.label_transform = LabelTransform(["0", "1"])
 
         for split in ("train", "valid", "test"):

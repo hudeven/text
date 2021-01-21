@@ -28,7 +28,7 @@ def train(max_epochs: int, gpus: int, fast_dev_run: bool = False, pair_classific
         datamodule = ConcatPairDocClassificationDataModule(data_path=data_path, batch_size=8, drop_last=True)
     else:
         datamodule = DocClassificationDataModule(data_path=data_path, batch_size=8, drop_last=True)
-    datamodule.setup("fit")
+    datamodule.setup("fit",'whitespace')
 
     # build task
     model = RobertaModel(
