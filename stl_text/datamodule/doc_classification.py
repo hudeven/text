@@ -1,5 +1,5 @@
 import os
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from typing import Optional
 
 import torch
@@ -57,9 +57,7 @@ class DocClassificationDataModule(LightningDataModule):
 
             vocab = vocab.to_ivalue() #TODO Remove to_ivalue() PR: https://github.com/pytorch/text/pull/1080
 
-            self.text_transform = TextSequentialTransforms()
-            self.text_transform.add_module('tokenizer',tokenizer)
-            self.text_transform.add_module('vocabulary',vocab)
+            self.text_transform = TextSequentialTransforms(OrderedDict([('tokenizer',tokenizer),('vocabulary',vocab)]))
         elif tokenizer_type=='whitespace':
             self.text_transform = WhitespaceTokenizer(vocab_path=self.vocab_path)
         else:
