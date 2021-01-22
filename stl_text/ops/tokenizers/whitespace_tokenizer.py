@@ -6,24 +6,29 @@ from iopath.common.file_io import PathManager
 from torchtext.experimental.vocab import (
     load_vocab_from_file,
     Vocab,
+    vocab,
 )
-from torchtext._torchtext import Vocab as VocabPybind 
 
 class WhitespaceTokenizer(nn.Module):
-    """
-    from stl_text.ops.tokenizers import WhitespaceTokenizer
-    whitespacetokenizer = WhitespaceTokenizer(vocab_path=vocab_path)
-    jit_whitespacetokenizer = torch.jit.script(whitespacetokenizer)
-    print(jit_whitespacetokenizer.code)
+    r"""White space tokenizer and vocabulary builder
 
-    >>>>>>>>>>>>>>>>>>>>>>>>>>OUTPUT of JIT code<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    def forward(self,
-        text: str) -> List[int]:
-    _0 = (self).numberize(torch.split(text, None, -1), )
-    return _0
-    >>>>>>>>>>>>>>>>>>>>>>>>>>OUTPUT of JIT code<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    Args:
+        vocab_path Optional[str]: Path to vocabulary file. The file should contain tokens seperated by new line.
+        trainable (bool): Indicates whether to add tokens to dictionary on-the-fly
 
+    Example:
+
+        >>> from stl_text.ops.tokenizers import WhitespaceTokenizer
+        >>> whitespacetokenizer = WhitespaceTokenizer(trainable=True)
+        >>> jit_whitespacetokenizer = torch.jit.script(whitespacetokenizer)
+        >>> print(jit_whitespacetokenizer.code)
+        def forward(self,
+            text: str) -> List[int]:
+        _0 = (self).numberize(torch.split(text, None, -1), )
+        return _0
+        
     """
+
 
     def __init__(self, vocab_path: Optional[str] = None, trainable: bool = False):
         super(WhitespaceTokenizer, self).__init__()
@@ -35,7 +40,7 @@ class WhitespaceTokenizer(nn.Module):
             with path_manager.open(vocab_path, "r",encoding='utf-8') as f:
                 self.vocab = load_vocab_from_file(f,unk_token=self.unk_token)
         else:
-            self.vocab = Vocab(VocabPybind([self.unk_token],self.unk_token))
+            self.vocab = vocab(OrderedDict(),unk_token=self.unk_token)
 
         self.vocab = self.vocab.to_ivalue() #Remove to_ivalue() PR: https://github.com/pytorch/text/pull/1080
 

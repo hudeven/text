@@ -8,68 +8,52 @@ from iopath.common.file_io import PathManager
 from torchtext.experimental.vocab import (
     load_vocab_from_file,
     build_vocab_from_iterator,
-    vocab,
 )
 
-SPECIAL_TOKEN_REPLACEMENT = {
-    "[UNK]": UNK,
-    "[PAD]": PAD,
-    "[CLS]": BOS,
-    "[MASK]": MASK,
-    "[SEP]": EOS,
-}
-
-class TruncateTransform(nn.Module):
-    def __init__(self, max_seq_len: int):
-        super().__init__()
-        assert max_seq_len > 0
-        self.max_seq_len: int = max_seq_len
-
-    def forward(self, token_ids: List[List[int]]) -> List[List[int]]:
-        return [token_id[: self.max_seq_len] for token_id in token_ids]
-
-
 class VocabTransform(nn.Module):
-    """
-    from stl_text.ops.vocab import VocabTransform
-    vocab = VocabTransform(vocab_path=vocab_path)
-    jit_vocab = torch.jit.script(vocab)
-    print(jit_vocab.code)
+    r""" Wrapper around torchtext.experimental.vocab.Vocab 
 
-    >>>>>>>>>>>>>>>>>>>>>>>>>>OUTPUT of JIT code<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    Args:
+        vocab_path (Optional[str]): Path to vocabulary file. The file should contain tokens seperated by new line.
+        vocab_list (Optional[List[str]]): List of vocabulary tokens
+        add_bos (bool): Whether to add BOS token in the beginning of sentence
+        add_eos (bool): whether to add EOS token at the end of sentnce
+        max_seq_len (int): The maximum length of sequence. The sequence will be truncated max_seq_len if input length is larger than this value.
 
-    def forward(self,
-        tokens: List[List[str]]) -> List[List[int]]:
-    tokens_idx = annotate(List[List[int]], [])
-    for _0 in range(torch.len(tokens)):
-        token = tokens[_0]
-        _1 = torch.append(tokens_idx, (self.vocab).forward(token, ))
-    tokens_idx0 = (self.truncate_transform).forward(tokens_idx, )
-    if self.add_bos:
-        tokens_idx2 = annotate(List[List[int]], [])
-        for _2 in range(torch.len(tokens_idx0)):
-        row = tokens_idx0[_2]
-        _3 = torch.append(tokens_idx2, torch.add([self.bos_idx], row))
-        tokens_idx1 = tokens_idx2
-    else:
-        tokens_idx1 = tokens_idx0
-    if self.add_eos:
-        tokens_idx4 = annotate(List[List[int]], [])
-        for _4 in range(torch.len(tokens_idx1)):
-        row0 = tokens_idx1[_4]
-        _5 = torch.append(tokens_idx4, torch.add(row0, [self.eos_idx]))
-        tokens_idx3 = tokens_idx4
-    else:
-        tokens_idx3 = tokens_idx1
-    return tokens_idx3
-    >>>>>>>>>>>>>>>>>>>>>>>>>>OUTPUT of JIT code<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
+    Example:
+        >>> from stl_text.ops.vocab import VocabTransform
+        >>> vocab = VocabTransform("vocab.txt")
+        >>> jit_vocab = torch.jit.script(vocab)
+        >>> print(jit_vocab.code)
+        def forward(self,
+            tokens: List[List[str]]) -> List[List[int]]:
+        tokens_idx = annotate(List[List[int]], [])
+        for _0 in range(torch.len(tokens)):
+            token = tokens[_0]
+            _1 = torch.append(tokens_idx, (self.vocab).forward(token, ))
+        tokens_idx0 = (self.truncate_transform).forward(tokens_idx, )
+        if self.add_bos:
+            tokens_idx2 = annotate(List[List[int]], [])
+            for _2 in range(torch.len(tokens_idx0)):
+            row = tokens_idx0[_2]
+            _3 = torch.append(tokens_idx2, torch.add([self.bos_idx], row))
+            tokens_idx1 = tokens_idx2
+        else:
+            tokens_idx1 = tokens_idx0
+        if self.add_eos:
+            tokens_idx4 = annotate(List[List[int]], [])
+            for _4 in range(torch.len(tokens_idx1)):
+            row0 = tokens_idx1[_4]
+            _5 = torch.append(tokens_idx4, torch.add(row0, [self.eos_idx]))
+            tokens_idx3 = tokens_idx4
+        else:
+            tokens_idx3 = tokens_idx1
+        return tokens_idx3
     """
     def __init__(
             self,
             vocab_path: Optional[str] = None,
             vocab_list: Optional[List[str]] = None,
-            special_token_replacements=SPECIAL_TOKEN_REPLACEMENT,
             add_bos: bool = False,
             add_eos: bool = False,
             max_seq_len: int = 2 ** 30,
@@ -120,3 +104,12 @@ class VocabTransform(nn.Module):
         if self.add_eos:
             tokens_idx = [row + [self.eos_idx] for row in tokens_idx]
         return tokens_idx
+
+class TruncateTransform(nn.Module):
+    def __init__(self, max_seq_len: int):
+        super().__init__()
+        assert max_seq_len > 0
+        self.max_seq_len: int = max_seq_len
+
+    def forward(self, token_ids: List[List[int]]) -> List[List[int]]:
+        return [token_id[: self.max_seq_len] for token_id in token_ids]

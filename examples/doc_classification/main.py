@@ -12,6 +12,7 @@ from task import DocClassificationTask
 
 
 def train(max_epochs: int, gpus: int, fast_dev_run: bool = False, pair_classification: bool = False):
+
     # convert csv to arrow format (only required for the first time)
     if pair_classification:
         data_path = "./glue_mrpc_tiny"
@@ -28,11 +29,11 @@ def train(max_epochs: int, gpus: int, fast_dev_run: bool = False, pair_classific
         datamodule = ConcatPairDocClassificationDataModule(data_path=data_path, batch_size=8, drop_last=True)
     else:
         datamodule = DocClassificationDataModule(data_path=data_path, batch_size=8, drop_last=True)
-    datamodule.setup("fit",'whitespace')
+    datamodule.setup("fit")
 
-    # build task
+    # build task 
     model = RobertaModel(
-        vocab_size=1000,
+        vocab_size=25000,
         embedding_dim=1000,
         num_attention_heads=1,
         num_encoder_layers=1,
