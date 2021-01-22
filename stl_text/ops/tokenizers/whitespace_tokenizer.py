@@ -9,7 +9,22 @@ from torchtext.experimental.vocab import (
 )
 from torchtext._torchtext import Vocab as VocabPybind 
 
-class WhitespaceTokenizer(nn.Module): 
+class WhitespaceTokenizer(nn.Module):
+    """
+    from stl_text.ops.tokenizers import WhitespaceTokenizer
+    whitespacetokenizer = WhitespaceTokenizer(vocab_path=vocab_path)
+    jit_whitespacetokenizer = torch.jit.script(whitespacetokenizer)
+    print(jit_whitespacetokenizer.code)
+
+    >>>>>>>>>>>>>>>>>>>>>>>>>>OUTPUT of JIT code<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    def forward(self,
+        text: str) -> List[int]:
+    _0 = (self).numberize(torch.split(text, None, -1), )
+    return _0
+    >>>>>>>>>>>>>>>>>>>>>>>>>>OUTPUT of JIT code<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+    """
+
     def __init__(self, vocab_path: Optional[str] = None, trainable: bool = False):
         super(WhitespaceTokenizer, self).__init__()
         self.trainable = trainable
