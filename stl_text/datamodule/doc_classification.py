@@ -13,6 +13,7 @@ from iopath.common.file_io import PathManager
 
 from torchtext.experimental.transforms import (
     sentencepiece_tokenizer,
+    sentencepiece_processor,
     PRETRAINED_SP_MODEL,
     TextSequentialTransforms,
 )
@@ -28,9 +29,14 @@ import torch.nn as nn
 
 
 class DocClassificationDataModule(LightningDataModule):
-    def __init__(self, data_path: str = 'glue_sst2_tiny', vocab_path: Optional[str] = None, batch_size: int = 32,
+    def __init__(self, data_path: str = 'glue_sst2_tiny', 
+                 vocab_path: Optional[str] = None, 
+                 tokenizer_type: str = 'sentencepiece',
+                 batch_size: int = 32,
                  drop_last: bool = False,
-                 num_proc_in_map: int = 1, distributed: bool = False, load_from_cache_file: bool = True):
+                 num_proc_in_map: int = 1, 
+                 distributed: bool = False, 
+                 load_from_cache_file: bool = True):
         super().__init__()
         self.data_path = data_path
         self.vocab_path = vocab_path
@@ -44,22 +50,22 @@ class DocClassificationDataModule(LightningDataModule):
         self.label_transform = None
         self.datasets = {}
         self.unk_token = '<unk>'
+        self.tokenizer_type = tokenizer_type
 
-    def setup(self, stage, tokenizer_type: str = 'sentencepiece'):
-        if tokenizer_type=='sentencepiece':
-            tokenizer = sentencepiece_tokenizer(download_from_url(PRETRAINED_SP_MODEL["text_unigram_25000"])).to_ivalue()
+    def setup(self, stage):
+        if self.tokenizer_type=='sentencepiece':
             if self.vocab_path:
+                tokenizer = sentencepiece_tokenizer(download_from_url(PRETRAINED_SP_MODEL["text_unigram_25000"])).to_ivalue()
                 path_manager = PathManager()
                 with path_manager.open(self.vocab_path, "r",encoding='utf-8') as f:
-                    vocab = build_vocab_from_text_file(f,torch.jit.script(tokenizer))
+                    vocab= build_vocab_from_text_file(f,torch.jit.script(tokenizer))
+
+                vocab = vocab.to_ivalue() #TODO Remove to_ivalue() PR: https://github.com/pytorch/text/pull/1080
+                self.text_transform = TextSequentialTransforms(OrderedDict([('tokenizer',tokenizer),('vocabulary',vocab)]))
             else:
-                vocab = Vocab(VocabPybind([self.unk_token],self.unk_token))
-
-            vocab = vocab.to_ivalue() #TODO Remove to_ivalue() PR: https://github.com/pytorch/text/pull/1080
-
-            self.text_transform = TextSequentialTransforms(OrderedDict([('tokenizer',tokenizer),('vocabulary',vocab)]))
-        elif tokenizer_type=='whitespace':
-            self.text_transform = WhitespaceTokenizer(vocab_path=self.vocab_path)
+                self.text_transform = sentencepiece_processor(download_from_url(PRETRAINED_SP_MODEL["text_unigram_25000"])).to_ivalue() 
+        elif self.tokenizer_type=='whitespace':
+            self.text_transform = WhitespaceTokenizer(vocab_path=self.vocab_path,trainable=False)
         else:
             raise NotImplementedError("Tokenizer [{}] is not yet supported".format(tokenizer_type))
         
@@ -92,7 +98,7 @@ class DocClassificationDataModule(LightningDataModule):
                                            collate_fn=self.collate)
 
     def valid_dataloader(self):
-        return torch.utils.data.DataLoader(self.self.datasets["valid"], shuffle=True, batch_size=self.batch_size,
+        return torch.utils.data.DataLoader(self.datasets["valid"], shuffle=True, batch_size=self.batch_size,
                                            num_workers=1,
                                            collate_fn=self.collate)
 
