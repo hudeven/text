@@ -12,17 +12,9 @@ from stl_text.ops.samplers import PoolBatchSampler
 from iopath.common.file_io import PathManager
 
 from torchtext.experimental.transforms import (
-    sentencepiece_tokenizer,
     sentencepiece_processor,
     PRETRAINED_SP_MODEL,
-    TextSequentialTransforms,
 )
-from torchtext.experimental.vocab import (
-    build_vocab_from_text_file,
-    Vocab,
-)
-
-from torchtext._torchtext import Vocab as VocabPybind 
 
 from torchtext.utils import download_from_url
 import torch.nn as nn
@@ -32,6 +24,7 @@ class DocClassificationDataModule(LightningDataModule):
     def __init__(self, data_path: str = 'glue_sst2_tiny', 
                  vocab_path: Optional[str] = None, 
                  tokenizer_type: str = 'sentencepiece',
+                 pretrained_sp_model: str = 'text_unigram_25000',
                  batch_size: int = 32,
                  drop_last: bool = False,
                  num_proc_in_map: int = 1, 
@@ -49,21 +42,12 @@ class DocClassificationDataModule(LightningDataModule):
         self.text_transform = None
         self.label_transform = None
         self.datasets = {}
-        self.unk_token = '<unk>'
         self.tokenizer_type = tokenizer_type
+        self.pretrained_sp_model = pretrained_sp_model
 
     def setup(self, stage):
         if self.tokenizer_type=='sentencepiece':
-            if self.vocab_path:
-                tokenizer = sentencepiece_tokenizer(download_from_url(PRETRAINED_SP_MODEL["text_unigram_25000"])).to_ivalue()
-                path_manager = PathManager()
-                with path_manager.open(self.vocab_path, "r",encoding='utf-8') as f:
-                    vocab= build_vocab_from_text_file(f,torch.jit.script(tokenizer))
-
-                vocab = vocab.to_ivalue() #TODO Remove to_ivalue() PR: https://github.com/pytorch/text/pull/1080
-                self.text_transform = TextSequentialTransforms(OrderedDict([('tokenizer',tokenizer),('vocabulary',vocab)]))
-            else:
-                self.text_transform = sentencepiece_processor(download_from_url(PRETRAINED_SP_MODEL["text_unigram_25000"])).to_ivalue() 
+            self.text_transform = sentencepiece_processor(download_from_url(PRETRAINED_SP_MODEL[self.pretrained_sp_model])).to_ivalue() 
         elif self.tokenizer_type=='whitespace':
             self.text_transform = WhitespaceTokenizer(vocab_path=self.vocab_path,trainable=False)
         else:
