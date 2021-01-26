@@ -62,7 +62,7 @@ class DocClassificationDataModule(LightningDataModule):
             else: 
                 self.text_transform = sentencepiece_processor(download_from_url(PRETRAINED_SP_MODEL[self.pretrained_sp_model])).to_ivalue() 
         elif self.tokenizer_type=='whitespace':
-            self.text_transform = WhitespaceTokenizer(vocab_path=self.vocab_path,trainable=False)
+            self.text_transform = WhitespaceTokenizer(vocab_path=self.vocab_path)
         else:
             raise NotImplementedError("Tokenizer [{}] is not yet supported".format(tokenizer_type))
         
