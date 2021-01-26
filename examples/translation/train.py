@@ -23,8 +23,6 @@ def main(fast_dev_run=True):
     WMT'14 cs-en translation
     """
 
-    import pdb
-    pdb.set_trace()
     logger.info("preparing WMT'14 cs-en data")
     wmt14 = prepare_wmt14_cs_en()
 
