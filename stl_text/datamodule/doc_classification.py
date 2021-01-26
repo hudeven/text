@@ -12,8 +12,14 @@ from stl_text.ops.samplers import PoolBatchSampler
 from iopath.common.file_io import PathManager
 
 from torchtext.experimental.transforms import (
+    sentencepiece_tokenizer,
     sentencepiece_processor,
     PRETRAINED_SP_MODEL,
+    TextSequentialTransforms,
+)
+
+from torchtext.experimental.vocab import(
+    load_vocab_from_file,
 )
 
 from torchtext.utils import download_from_url
@@ -47,7 +53,14 @@ class DocClassificationDataModule(LightningDataModule):
 
     def setup(self, stage):
         if self.tokenizer_type=='sentencepiece':
-            self.text_transform = sentencepiece_processor(download_from_url(PRETRAINED_SP_MODEL[self.pretrained_sp_model])).to_ivalue() 
+            if self.vocab_path:
+                tokenizer = sentencepiece_tokenizer(
+                    download_from_url(PRETRAINED_SP_MODEL[self.pretrained_sp_model])).to_ivalue() #Remove to_ivalue() PR: https://github.com/pytorch/text/pull/1080
+                with PathManager().open(self.vocab_path, "r",encoding='utf-8') as f:
+                    vocab = load_vocab_from_file(f).to_ivalue()  #Remove to_ivalue() PR: https://github.com/pytorch/text/pull/1080
+                self.text_transform = TextSequentialTransforms(OrderedDict([('tokenizer',tokenizer),('vocab',vocab)]))
+            else: 
+                self.text_transform = sentencepiece_processor(download_from_url(PRETRAINED_SP_MODEL[self.pretrained_sp_model])).to_ivalue() 
         elif self.tokenizer_type=='whitespace':
             self.text_transform = WhitespaceTokenizer(vocab_path=self.vocab_path,trainable=False)
         else:
