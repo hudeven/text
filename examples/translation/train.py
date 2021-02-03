@@ -18,6 +18,21 @@ from task import TranslationTask
 
 logger = logging.getLogger(__name__)
 
+
+def build_vocab(data: Iterable, transform: nn.Module) -> "Vocab":
+    tokens = chain.from_iterable(
+        map(lambda x: transform(x["text"]), data)
+    )
+    list(tokens)
+    return transform.vocab
+    # tokens = chain.from_iterable(
+    #    map(lambda x: transform.tokenize(x["text"]), data)
+    # )
+    # counts = Counter(tokens).most_common()
+    # TODO cannot pickle 'torchtext._torchtext.Vocab' object
+    # return vocab(OrderedDict(counts), unk_token="<unk>")
+
+
 def main(fast_dev_run=True):
     """
     WMT'14 cs-en translation
@@ -29,13 +44,13 @@ def main(fast_dev_run=True):
     train = "train" if not fast_dev_run else "validation"
 
     logger.info("build vocabs")
-    source_text_transform = WhitespaceTokenizer()
-    source_text_transform.build_vocab(map(lambda x:x['text'],wmt14["cs"][train]))
-    target_text_transform = WhitespaceTokenizer()
-    target_text_transform.build_vocab(map(lambda x:x['text'],wmt14["en"][train]))
-    source_vocab = source_text_transform.vocab.get_stoi()
-    target_vocab = target_text_transform.vocab.get_stoi()
-    
+    source_text_transform = WhitespaceTokenizer(trainable=True)
+    target_text_transform = WhitespaceTokenizer(trainable=True)
+    source_vocab = build_vocab(wmt14["cs"][train], source_text_transform)
+    target_vocab = build_vocab(wmt14["en"][train], target_text_transform)
+    source_text_transform.trainable = False
+    target_text_transform.trainable = False
+
     logger.info("init data module")
     datamodule = TranslationDataModule(
         source_data={
