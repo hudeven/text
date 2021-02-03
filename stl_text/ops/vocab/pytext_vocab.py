@@ -3,12 +3,13 @@
 import torch
 import torch.nn as nn
 from pytext.data.utils import BOS, EOS, MASK, PAD, UNK
-from typing import Dict, List, Optional
+from typing import List, Optional
 from iopath.common.file_io import PathManager
 from torchtext.experimental.vocab import (
     load_vocab_from_file,
     build_vocab_from_iterator,
 )
+
 
 class VocabTransform(nn.Module):
     r""" Wrapper around torchtext.experimental.vocab.Vocab 
@@ -65,12 +66,12 @@ class VocabTransform(nn.Module):
         ), "vocab_path and vocab_list are mutual exclusive"
 
         if vocab_list:
-            self.vocab = build_vocab_from_iterator([vocab_list],unk_token=UNK)
+            self.vocab = build_vocab_from_iterator([vocab_list], unk_token=UNK)
         else:
             path_manager = PathManager()
-            with path_manager.open(vocab_path, "r",encoding='utf-8') as f:
-                self.vocab = load_vocab_from_file(f,unk_token=UNK)
- 
+            with path_manager.open(vocab_path, "r", encoding='utf-8') as f:
+                self.vocab = load_vocab_from_file(f, unk_token=UNK)
+
         self.vocab.append_token(BOS)
         self.vocab.append_token(EOS)
         self.vocab.append_token(PAD)
@@ -86,7 +87,7 @@ class VocabTransform(nn.Module):
         # Make room for bos and eos from max_seq_len if true
         self.truncate_transform = TruncateTransform(max_seq_len - add_bos - add_eos)
 
-        self.vocab = self.vocab.to_ivalue() #Remove to_ivalue() PR: https://github.com/pytorch/text/pull/1080
+        self.vocab = self.vocab.to_ivalue()  # Remove to_ivalue() PR: https://github.com/pytorch/text/pull/1080
 
     @torch.jit.export
     def __len__(self) -> int:
@@ -104,6 +105,7 @@ class VocabTransform(nn.Module):
         if self.add_eos:
             tokens_idx = [row + [self.eos_idx] for row in tokens_idx]
         return tokens_idx
+
 
 class TruncateTransform(nn.Module):
     def __init__(self, max_seq_len: int):
