@@ -1,12 +1,13 @@
 import os
-import tempfile
-
 import argparse
 import torch
 from torch.optim import AdamW
 from pytorch_lightning import Trainer, LightningModule
 from stl_text.ops.utils.arrow import convert_csv_to_arrow
-from stl_text.datamodule import ConcatPairDocClassificationDataModule, DocClassificationDataModule
+from stl_text.datamodule import (
+    ConcatPairDocClassificationDataModule,
+    DocClassificationDataModule
+    )
 from stl_text.models import RobertaModel
 from task import DocClassificationTask
 
@@ -28,18 +29,29 @@ def train(max_epochs: int, gpus: int, fast_dev_run: bool = False, pair_classific
     if pair_classification:
         datamodule = ConcatPairDocClassificationDataModule(data_path=data_path, batch_size=8, drop_last=True)
     else:
-        # using sentencepiece with vocab
-        # datamodule = DocClassificationDataModule(data_path=data_path, tokenizer_type='sentencepiece',vocab_path='./glue_sst2_tiny/vocab_sentencepiece_tiny.txt', batch_size=8, drop_last=True)
+        # # using sentencepiece with vocab
+        # datamodule = DocClassificationDataModule(data_path=data_path,
+        #                                          tokenizer_type='sentencepiece',
+        #                                          vocab_path='./glue_sst2_tiny/vocab_sentencepiece_tiny.txt',
+        #                                          batch_size=8,
+        #                                          drop_last=True)
         # vocab_size = 257
-        # using sentencepiece without vocab
-        # datamodule = DocClassificationDataModule(data_path=data_path, tokenizer_type='sentencepiece', batch_size=8, drop_last=True)
+        # # using sentencepiece without vocab
+        # datamodule = DocClassificationDataModule(data_path=data_path,
+        #                                          tokenizer_type='sentencepiece',
+        #                                          batch_size=8,
+        #                                          drop_last=True)
         # vocab_size = 25000
         # using whitespace tokenizer with vocab
-        datamodule = DocClassificationDataModule(data_path=data_path, tokenizer_type='whitespace',vocab_path='./glue_sst2_tiny/vocab_whitespace_tiny.txt', batch_size=8, drop_last=True)
+        datamodule = DocClassificationDataModule(data_path=data_path,
+                                                 tokenizer_type='whitespace',
+                                                 vocab_path='./glue_sst2_tiny/vocab_whitespace_tiny.txt',
+                                                 batch_size=8,
+                                                 drop_last=True)
         vocab_size = 220
     datamodule.setup("fit")
 
-    # build task 
+    # build task
     # vocab_size: Set the correct vocab size to avoid indexing issue in embedding layer
     model = RobertaModel(
         vocab_size=vocab_size,
